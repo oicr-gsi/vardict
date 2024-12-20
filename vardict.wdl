@@ -68,22 +68,11 @@ task runVardict {
         Int jobMemory = 24
     }
 
-    parameter_meta {
-        tumor_bam: "Input tumor bam file for analysis sample"
-        normal_bam: "Input normal bam file for analysis sample"
-        refFasta: "The reference fasta."
-        AF_THR: "The threshold for allele frequency, default: 0.01 or 1%"
-        bed_file: "bed_file for target regions"
-        jobMemory: "Memory in Gb for this job"
-        modules: "Names and versions of modules"
-        timeout: "Timeout in hours, needed to override imposed limits"
-    }
-
     command <<<
         $VARDICT_ROOT/bin/VarDict \
             -G ~{refFasta} \
             -f ~{AF_THR} \
-            -N ~{tumor_sample_name} | ~{normal_sample_name} \
+            -N "~{tumor_sample_name}|~{normal_sample_name}" \
             -b ~{tumor_bam} ~{normal_bam} \
             -Q 10 \
             -c 1 -S 2 -E 3 -g 4 \
