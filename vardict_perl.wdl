@@ -3,15 +3,15 @@ version 1.0
 
 workflow vardict {
     input {
-        File tumor_bam = "/.mounts/labs/gsiprojects/gsi/gsiusers/hdriver/CHUM_Data/1.Fastq_to_Bam/Outputs_2/MoHQ-CM-1-180.DT.filter.deduped.realigned.recalibrated.bam"
-        File normal_bam = "/.mounts/labs/gsiprojects/gsi/gsiusers/hdriver/CHUM_Data/1.Fastq_to_Bam/Outputs_2/MoHQ-CM-1-180.DN.filter.deduped.realigned.recalibrated.bam"
-        String tumor_sample_name = "MoHQ-CM-1-180.DT"
-        String normal_sample_name = "MoHQ-CM-1-180.DN"
+        File tumor_bam
+        File normal_bam
+        String tumor_sample_name
+        String normal_sample_name
     }
 
     parameter_meta {
-        tumor_bam: "Input fastqR1 file for analysis sample"
-        normal_bam: "Input fastqR2 file for analysis sample"
+        tumor_bam: "tumor_bam file for analysis sample"
+        normal_bam: "normal_bam file for analysis sample"
         tumor_sample_name:"Sample name for the tumor bam"
         normal_sample_name: "Sample name for the normal bam"
     }
@@ -46,7 +46,7 @@ workflow vardict {
         ]
     }
     output {
-        File vcf_out = runVardict.vcf_file
+        File vardict_vcf = runVardict.vcf_file
     }
 
 }
@@ -60,24 +60,41 @@ task runVardict {
         File normal_bam
         String tumor_sample_name
         String normal_sample_name
-        String refFasta = "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa"
-        String AF_THR = 0.03
-        String modules = "samtools/1.16.1 rstats/4.2 java/9 perl/5.30 vardict/1.8.3"
-        String bed_file = "/.mounts/labs/gsiprojects/gsi/gsiusers/hdriver/CHUM_Data/5.Somatic_Calls/Part0_Running_Callers/renamed_hg38.bed"
+        String refFasta = "$HG38_ROOT/hg38_random.fa"
+        String AF_THR = 0.01
+        String MAP_QUAL = 10
+        String modules = "samtools/1.16.1 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 hg38/p12"
+        String bed_file = "/.mounts/labs/gsiprojects/gsi/gsiusers/gpeng/workflow/vardict/test/renamed_hg38.bed"
         Int timeout = 48
         Int jobMemory = 24
     }
+    parameter_meta {
+        tumor_bam: "tumor_bam file for analysis sample"
+        normal_bam: "normal_bam file for analysis sample"
+        tumor_sample_name:"Sample name for the tumor bam"
+        normal_sample_name: "Sample name for the normal bam"
+        refFasta: "The reference fasta"
+        AF_THR: "The threshold for allele frequency, default: 0.01 or 1%"
+        MAP_QUAL: " Mapping quality. If set, reads with mapping quality less than the number will be filtered and ignored"
+        bed_file: "BED files for specifying regions of interest"
+        jobMemory: "Memory in Gb for this job"
+        modules: "Names and versions of modules"
+        timeout: "Timeout in hours, needed to override imposed limits"
+    }
 
     command <<<
-        /.mounts/labs/gsiprojects/gsi/gsiusers/hdriver/Scripting/NeoAntigen/VarDict/vardict.pl \
+        /.mounts/labs/gsiprojects/gsi/gsiusers/gpeng/workflow/vardict/test/vardict.pl \
             -G ~{refFasta} \
             -f ~{AF_THR} \
             -N ~{tumor_sample_name} \
-            -b "~{tumor_bam} | ~{normal_bam}" \
+            -b "~{tumor_bam}|~{normal_bam}" \
             -c 1 -S 2 -E 3 -g 4 \
+            -Q ~{MAP_QUAL} \
             ~{bed_file} | \
-            $VARDICT_ROOT/bin/testsomatic.R | \
-            $VARDICT_ROOT/bin/var2vcf_paired.pl -N "MoHQ-CM-1-180.DT|MoHQ-CM-1-180.DN" -f 0.03  > ~{tumor_sample_name}.vardict.vcf
+            $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
+            $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
+            -N "~{tumor_sample_name}|~{normal_sample_name}" \
+            -f ~{AF_THR}  > ~{tumor_sample_name}_~{normal_sample_name}_perl.vardict.vcf
   
     >>>
 
@@ -88,7 +105,7 @@ task runVardict {
     }
 
     output {
-        File vcf_file = "~{tumor_sample_name}.vardict.vcf"
+        File vcf_file = "~{tumor_sample_name}_~{normal_sample_name}_perl.vardict.vcf"
 
     }
 }
