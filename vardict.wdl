@@ -72,8 +72,8 @@ task runVardict {
         $VARDICT_ROOT/bin/VarDict \
             -G ~{refFasta} \
             -f ~{AF_THR} \
-            -N "~{tumor_sample_name}" \
-            -b ~{tumor_bam} | ~{normal_bam} \
+            -N ~{tumor_sample_name} \
+            -b "~{tumor_bam} | ~{normal_bam}" \
             -Q 10 \
             -c 1 -S 2 -E 3 -g 4 \
             ~{bed_file} | \
