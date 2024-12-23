@@ -1,0 +1,23 @@
+## Commands
+This section lists command(s) run by WORKFLOW workflow
+
+* Running WORKFLOW
+
+=== Description here ===.
+
+<<<
+        $VARDICT_ROOT/bin/VarDict \
+            -G ~{refFasta} \
+            -f ~{AF_THR} \
+            -N ~{tumor_sample_name} \
+            -b "~{tumor_bam}|~{normal_bam}" \
+            -Q ~{MAP_QUAL} \
+            -P ~{READ_POSTION_FILTER} \
+            -c 1 -S 2 -E 3 -g 4 \
+            ~{bed_file} | \
+            $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
+            $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
+            -N "~{tumor_sample_name}|~{normal_sample_name}" \
+            -f ~{AF_THR}  > ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf
+  
+    >>>

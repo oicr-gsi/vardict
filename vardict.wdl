@@ -10,8 +10,8 @@ workflow vardict {
     }
 
     parameter_meta {
-        tumor_bam: "Input fastqR1 file for analysis sample"
-        normal_bam: "Input fastqR2 file for analysis sample"
+        tumor_bam: "tumor_bam file for analysis sample"
+        normal_bam: "normal_bam file for analysis sample"
         tumor_sample_name:"Sample name for the tumor bam"
         normal_sample_name: "Sample name for the normal bam"
     }
@@ -36,17 +36,20 @@ workflow vardict {
                 url: "https://github.com/pachterlab/vardict"
             },
             {
-                name: "samtools/1.16.1",
-                url: "https://www.htslib.org/"
-            },
-            {
                 name: "java",
                 url: "https://www.java.com/en/"
             }
-        ]
+        ],
+        output_meta: {
+            vardict_vcf: {
+                description: "VCF file for variant calling from vardict",
+                vidarr_label: "vardict_vcf"
+            }
+        }
     }
+    
     output {
-        File vcf_out = runVardict.vcf_file
+        File vardict_vcf = runVardict.vcf_file
     }
 
 }
@@ -60,12 +63,28 @@ task runVardict {
         File normal_bam
         String tumor_sample_name
         String normal_sample_name
-        String refFasta = "$HG19_ROOT/hg19_random.fa"
+        String refFasta = "$HG38_ROOT/hg38_random.fa"
         String AF_THR = 0.01
-        String modules = "samtools/1.16.1 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 hg19/p13"
+        String MAP_QUAL = 10
+        String READ_POSTION_FILTER = 5
+        String modules = "rstats/4.2 java/9 perl/5.30 vardict/1.8.3 hg38/p12"
         String bed_file = "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022.val.bed"
         Int timeout = 48
         Int jobMemory = 24
+    }
+    parameter_meta {
+        tumor_bam: "tumor_bam file for analysis sample"
+        normal_bam: "normal_bam file for analysis sample"
+        tumor_sample_name:"Sample name for the tumor bam"
+        normal_sample_name: "Sample name for the normal bam"
+        refFasta: "The reference fasta"
+        AF_THR: "The threshold for allele frequency, default: 0.01 or 1%"
+        MAP_QUAL: " Mapping quality. If set, reads with mapping quality less than the number will be filtered and ignored"
+        READ_POSTION_FILTER: "The read position filter. If the mean variants position is less that specified, it is considered false positive. Default: 5"
+        bed_file: "BED files for specifying regions of interest"
+        jobMemory: "Memory in Gb for this job"
+        modules: "Names and versions of modules"
+        timeout: "Timeout in hours, needed to override imposed limits"
     }
 
     command <<<
@@ -73,9 +92,15 @@ task runVardict {
             -G ~{refFasta} \
             -f ~{AF_THR} \
             -N ~{tumor_sample_name} \
-            -b "~{tumor_bam}" \
+            -b "~{tumor_bam}|~{normal_bam}" \
+            -Q ~{MAP_QUAL} \
+            -P ~{READ_POSTION_FILTER} \
             -c 1 -S 2 -E 3 -g 4 \
-            ~{bed_file} > vardict.txt
+            ~{bed_file} | \
+            $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
+            $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
+            -N "~{tumor_sample_name}|~{normal_sample_name}" \
+            -f ~{AF_THR}  > ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf
   
     >>>
 
@@ -86,7 +111,7 @@ task runVardict {
     }
 
     output {
-        File vcf_file = "vardict.txt"
+        File vcf_file = "~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf"
 
     }
 }
