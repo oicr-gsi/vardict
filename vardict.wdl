@@ -73,12 +73,9 @@ task runVardict {
             -G ~{refFasta} \
             -f ~{AF_THR} \
             -N ~{tumor_sample_name} \
-            -b "~{tumor_bam} | ~{normal_bam}" \
-            -Q 10 \
+            -b "~{tumor_bam}" \
             -c 1 -S 2 -E 3 -g 4 \
-            ~{bed_file} | \
-            $VARDICT_ROOT/bin/testsomatic.R | \
-            $VARDICT_ROOT/bin/var2vcf_paired.pl -N "~{tumor_sample_name}| ~{normal_sample_name}" -f 0.03 > ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf
+            ~{bed_file} > vardict.txt
   
     >>>
 
@@ -89,7 +86,7 @@ task runVardict {
     }
 
     output {
-        File vcf_file = "~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf"
+        File vcf_file = "vardict.txt"
 
     }
 }
