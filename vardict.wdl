@@ -60,10 +60,10 @@ task runVardict {
         File normal_bam
         String tumor_sample_name
         String normal_sample_name
-        String refFasta = "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa"
+        String refFasta = "$HG19_ROOT/hg19_random.fa"
         String AF_THR = 0.01
-        String modules = "samtools/1.16.1 rstats/4.2 java/9 perl/5.30 vardict/1.8.3"
-        String bed_file = "/.mounts/labs/gsiprojects/gsi/gsiusers/hdriver/CHUM_Data/5.Somatic_Calls/Part0_Running_Callers/renamed_hg38.bed"
+        String modules = "samtools/1.16.1 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 hg19/p13"
+        String bed_file = "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022.val.bed"
         Int timeout = 48
         Int jobMemory = 24
     }
@@ -72,15 +72,13 @@ task runVardict {
         $VARDICT_ROOT/bin/VarDict \
             -G ~{refFasta} \
             -f ~{AF_THR} \
-            -N "~{tumor_sample_name}|~{normal_sample_name}" \
-            -b ~{tumor_bam} ~{normal_bam} \
+            -N "~{tumor_sample_name}" \
+            -b ~{tumor_bam} | ~{normal_bam} \
             -Q 10 \
             -c 1 -S 2 -E 3 -g 4 \
-            -P 0.9  \
-            -m 8  -M 0 \
             ~{bed_file} | \
             $VARDICT_ROOT/bin/testsomatic.R | \
-            $VARDICT_ROOT/bin/var2vcf_paired.pl > ~{tumor_sample_name}.vardict.vcf
+            $VARDICT_ROOT/bin/var2vcf_paired.pl -N "~{tumor_sample_name}| ~{normal_sample_name}" -f 0.03 > ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf
   
     >>>
 
@@ -91,7 +89,7 @@ task runVardict {
     }
 
     output {
-        File vcf_file = "~{tumor_sample_name}.vardict.vcf"
+        File vcf_file = "~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf"
 
     }
 }

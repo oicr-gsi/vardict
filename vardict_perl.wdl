@@ -73,13 +73,13 @@ task runVardict {
             -G ~{refFasta} \
             -f ~{AF_THR} \
             -N "~{tumor_sample_name}" \
-            -b ~{tumor_bam} ~{normal_bam} \
+            -b ~{tumor_bam} | ~{normal_bam} \
             -Q 10 \
             -c 1 -S 2 -E 3 -g 4 \
             -P 0.9  \
             ~{bed_file} | \
             $VARDICT_ROOT/bin/testsomatic.R | \
-            $VARDICT_ROOT/bin/var2vcf_paired.pl -N "MoHQ-CM-1-180.DT|MoHQ-CM-1-180.DN" -f 0.03 -P 0.9 -m 4.25 -M > ~{tumor_sample_name}.vardict.vcf
+            $VARDICT_ROOT/bin/var2vcf_paired.pl -N "MoHQ-CM-1-180.DT|MoHQ-CM-1-180.DN" -f 0.03  > ~{tumor_sample_name}.vardict.vcf
   
     >>>
 
