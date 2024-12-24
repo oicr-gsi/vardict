@@ -7,6 +7,7 @@ workflow vardict {
         File normal_bam
         String tumor_sample_name
         String normal_sample_name
+        String bed_file
     }
 
     parameter_meta {
@@ -14,6 +15,7 @@ workflow vardict {
         normal_bam: "normal_bam file for analysis sample"
         tumor_sample_name:"Sample name for the tumor bam"
         normal_sample_name: "Sample name for the normal bam"
+        bed_file: "BED files for specifying regions of interest"
     }
 
     # run vardict
@@ -23,7 +25,8 @@ workflow vardict {
                 tumor_bam = tumor_bam,
                 normal_bam = normal_bam,
                 tumor_sample_name = tumor_sample_name,
-                normal_sample_name = normal_sample_name
+                normal_sample_name = normal_sample_name,
+                bed_file = bed_file
         }
 
     meta {
@@ -44,7 +47,14 @@ workflow vardict {
                 url: "https://www.java.com/en/"
             }
         ]
+        output_meta: {
+            vardict_vcf: {
+                description: "VCF file for variant calling from vardict",
+                vidarr_label: "vardict_vcf"
+            }
+        }
     }
+
     output {
         File vardict_vcf = runVardict.vcf_file
     }
@@ -64,7 +74,7 @@ task runVardict {
         String AF_THR = 0.01
         String MAP_QUAL = 10
         String modules = "samtools/1.16.1 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 hg38/p12"
-        String bed_file = "/.mounts/labs/gsiprojects/gsi/gsiusers/gpeng/workflow/vardict/test/renamed_hg38.bed"
+        String bed_file
         Int timeout = 48
         Int jobMemory = 24
     }
@@ -83,6 +93,7 @@ task runVardict {
     }
 
     command <<<
+        set -euo pipefail
         /.mounts/labs/gsiprojects/gsi/gsiusers/gpeng/workflow/vardict/test/vardict.pl \
             -G ~{refFasta} \
             -f ~{AF_THR} \
