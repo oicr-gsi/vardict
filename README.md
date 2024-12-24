@@ -43,7 +43,7 @@ Parameter|Value|Default|Description
 `runVardict.READ_POSTION_FILTER`|String|5|The read position filter. If the mean variants position is less that specified, it is considered false positive. Default: 5
 `runVardict.modules`|String|"rstats/4.2 java/9 perl/5.30 vardict/1.8.3 hg38/p12"|Names and versions of modules
 `runVardict.timeout`|Int|48|Timeout in hours, needed to override imposed limits
-`runVardict.jobMemory`|Int|24|Memory in Gb for this job
+`runVardict.jobMemory`|Int|48|Memory in Gb for this job
 
 
 ### Outputs
@@ -54,13 +54,14 @@ Output | Type | Description
 
 
 ## Commands
- This section lists command(s) run by WORKFLOW workflow
+ This section lists command(s) run by vardict workflow
  
- * Running WORKFLOW
+ * Running Vardict
+
  
- === Description here ===.
- 
- <<<
+ ```
+         set -euo pipefail
+         export JAVA_OPTS="-Xmx~{jobMemory - 6}G "
          $VARDICT_ROOT/bin/VarDict \
              -G ~{refFasta} \
              -f ~{AF_THR} \
@@ -75,7 +76,7 @@ Output | Type | Description
              -N "~{tumor_sample_name}|~{normal_sample_name}" \
              -f ~{AF_THR}  > ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf
    
-     >>>
+```
  ## Support
 
 For support, please file an issue on the [Github project](https://github.com/oicr-gsi) or send an email to gsi@oicr.on.ca .

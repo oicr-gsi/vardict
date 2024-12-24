@@ -73,7 +73,7 @@ task runVardict {
         String modules = "rstats/4.2 java/9 perl/5.30 vardict/1.8.3 hg38/p12"
         String bed_file
         Int timeout = 48
-        Int jobMemory = 24
+        Int jobMemory = 48
     }
     parameter_meta {
         tumor_bam: "tumor_bam file for analysis sample"
@@ -92,6 +92,7 @@ task runVardict {
 
     command <<<
         set -euo pipefail
+        export JAVA_OPTS="-Xmx~{jobMemory - 6}G "
         $VARDICT_ROOT/bin/VarDict \
             -G ~{refFasta} \
             -f ~{AF_THR} \
