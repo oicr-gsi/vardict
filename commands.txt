@@ -6,6 +6,7 @@
  
  ```
          set -euo pipefail
+         cp ~{refFai} .
          export JAVA_OPTS="-Xmx~{jobMemory - 6}G "
          $VARDICT_ROOT/bin/VarDict \
              -G ~{refFasta} \

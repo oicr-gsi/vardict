@@ -1,0 +1,65 @@
+[
+    {
+        "arguments": {
+            "vardict.tumor_bam": {
+                "contents": {
+                    "configuration": "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022P.sorted.filter.deduped.realigned.recal.bam",
+                    "externalIds": [
+                        {
+                            "id": "TEST",
+                            "provider": "TEST"
+                        }
+                    ]
+                },
+                "type": "EXTERNAL"
+            },
+            "vardict.normal_bam": {
+                "contents": {
+                    "configuration": "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022R.val.bam",
+                    "externalIds": [
+                        {
+                            "id": "TEST",
+                            "provider": "TEST"
+                        }
+                    ]
+                },
+                "type": "EXTERNAL"
+            },
+            "vardict.normal_sample_name": "PCSI0022R",
+            "vardict.runVardict.MAP_QUAL": null,
+            "vardict.runVardict.READ_POSTION_FILTER": null,
+            "vardict.runVardict.timeout": 48,
+            "vardict.runVardict.modules": null,
+            "vardict.runVardict.jobMemory": null,
+            "vardict.bed_file": "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022.val.bed",
+            "vardict.runVardict.refFasta": null,
+            "vardict.tumor_sample_name": "PCSI0022P",
+            "vardict.runVardict.AF_THR": null
+        },
+        "description": "vardict workflow test",
+        "engineArguments": {
+           "write_to_cache": false,
+           "read_from_cache": false
+        },
+        "id": "vardict_test",
+        "metadata": {
+            "vardict.vardict_vcf": {
+                "contents": [
+                    {
+                        "outputDirectory": "@SCRATCH@/@DATE@_Workflow_vardict_@JENKINSID@"
+                    }
+                ],
+                "type": "ALL"
+            }
+        },
+        
+        "validators": [
+            {
+                "metrics_calculate": "@CHECKOUT@/tests/calculate.sh",
+                "metrics_compare": "@CHECKOUT@/tests/compare.sh",
+                "output_metrics": "/.mounts/labs/gsi/testdata/vardict/output_expectation/1.0.0/vardict_test.metrics",
+                "type": "script"
+            }
+        ]
+    }
+]

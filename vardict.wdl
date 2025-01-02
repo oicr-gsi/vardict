@@ -1,5 +1,10 @@
 version 1.0
 
+struct GenomeResources {
+    String refFai
+    String refFasta
+    String modules
+}
 
 workflow vardict {
     input {
@@ -8,6 +13,7 @@ workflow vardict {
         String tumor_sample_name
         String normal_sample_name
         String bed_file
+        String reference
     }
 
     parameter_meta {
@@ -16,6 +22,20 @@ workflow vardict {
         tumor_sample_name:"Sample name for the tumor bam"
         normal_sample_name: "Sample name for the normal bam"
         bed_file: "BED files for specifying regions of interest"
+        reference: "the reference genome for input sample"
+    }
+
+    Map[String, GenomeResources] resources = {
+        "hg19": {
+            "refFai" : "$HG19_ROOT/hg19_random.fa.fai",
+            "refFasta" : "$HG19_ROOT/hg19_random.fa",
+            "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3"
+        },
+        "hg38": {
+            "refFai" : "$HG38_ROOT/hg38_random.fa.fai",
+            "refFasta" : "$HG38_ROOT/hg38_random.fa",
+            "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3"
+        }
     }
 
     # run vardict
@@ -26,7 +46,10 @@ workflow vardict {
                 normal_bam = normal_bam,
                 tumor_sample_name = tumor_sample_name,
                 normal_sample_name = normal_sample_name,
-                bed_file = bed_file
+                bed_file = bed_file,
+                modules = resources [ reference ].modules,
+                refFai = resources[reference].refFai,
+                refFasta = resources[reference].refFasta,
         }
 
     meta {
@@ -66,11 +89,12 @@ task runVardict {
         File normal_bam
         String tumor_sample_name
         String normal_sample_name
-        String refFasta = "$HG38_ROOT/hg38_random.fa"
+        String refFasta
+        String refFai
         String AF_THR = 0.01
         String MAP_QUAL = 10
         String READ_POSTION_FILTER = 5
-        String modules = "rstats/4.2 java/9 perl/5.30 vardict/1.8.3 hg38/p12"
+        String modules
         String bed_file
         Int timeout = 48
         Int jobMemory = 48
@@ -80,6 +104,7 @@ task runVardict {
         normal_bam: "normal_bam file for analysis sample"
         tumor_sample_name:"Sample name for the tumor bam"
         normal_sample_name: "Sample name for the normal bam"
+        refFai: "Reference fasta fai index"
         refFasta: "The reference fasta"
         AF_THR: "The threshold for allele frequency, default: 0.01 or 1%"
         MAP_QUAL: " Mapping quality. If set, reads with mapping quality less than the number will be filtered and ignored"
@@ -92,6 +117,7 @@ task runVardict {
 
     command <<<
         set -euo pipefail
+        cp ~{refFai} .
         export JAVA_OPTS="-Xmx~{jobMemory - 6}G "
         $VARDICT_ROOT/bin/VarDict \
             -G ~{refFasta} \
