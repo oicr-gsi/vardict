@@ -34,7 +34,8 @@
             "vardict.bed_file": "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022.val.bed",
             "vardict.runVardict.refFasta": null,
             "vardict.tumor_sample_name": "PCSI0022P",
-            "vardict.runVardict.AF_THR": null
+            "vardict.runVardict.AF_THR": null,
+            "vardict.reference": "hg38"
         },
         "description": "vardict workflow test",
         "engineArguments": {
