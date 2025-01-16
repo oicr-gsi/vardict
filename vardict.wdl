@@ -4,6 +4,7 @@ struct GenomeResources {
     String refFai
     String refFasta
     String modules
+    String splitRegionModule
 }
 
 workflow vardict {
@@ -14,6 +15,7 @@ workflow vardict {
         String normal_sample_name
         String bed_file
         String reference
+        Int baseMemory
     }
 
     parameter_meta {
@@ -23,24 +25,34 @@ workflow vardict {
         normal_sample_name: "Sample name for the normal bam"
         bed_file: "BED files for specifying regions of interest"
         reference: "the reference genome for input sample"
+        intervalsToParallelizeBy: "Comma separated list of intervals to split by (e.g. chr1,chr2,chr3+chr4)"
     }
 
     Map[String, GenomeResources] resources = {
         "hg19": {
             "refFai" : "$HG19_ROOT/hg19_random.fa.fai",
             "refFasta" : "$HG19_ROOT/hg19_random.fa",
-            "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3"
+            "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3",
+            "splitRegionModule": "hg19/p13"
         },
         "hg38": {
-            "refFai" : "$HG38_ROOT/hg38_random.fa.fai",
+            "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa.fai",
             "refFasta" : "$HG38_ROOT/hg38_random.fa",
-            "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3"
+            "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3",
+            "splitRegionModule": "hg38/p12"
         }
     }
 
+    call splitRegion {
+        input:
+        refFai = resources[reference].refFai,
+        baseMemory = baseMemory,
+        modules = resources [ reference ].splitRegionModule
+    }
+
     # run vardict
-    call runVardict 
-        { 
+    scatter (region in splitRegion.regions) {
+        call runVardict { 
             input: 
                 tumor_bam = tumor_bam,
                 normal_bam = normal_bam,
@@ -50,7 +62,17 @@ workflow vardict {
                 modules = resources [ reference ].modules,
                 refFai = resources[reference].refFai,
                 refFasta = resources[reference].refFasta,
+                region = region,
+                mem_allocate = splitRegion.region_memory_map[region]
         }
+    }
+    Array[File] vardictVcfs = runVardict.vcf_file
+
+    call mergeVCFs {
+    input:
+      vcfs = vardictVcfs
+    }
+
 
     meta {
         author: "Gavin Peng"
@@ -75,10 +97,45 @@ workflow vardict {
     }
     
     output {
-        File vardict_vcf = runVardict.vcf_file
+        File vardictVcf = mergeVCFs.mergedVcf
+        File vardictVcfIndex = mergeVCFs.mergedVcfIdx
     }
 
 }
+
+task splitRegion {
+    input {
+        File refFai  
+        Int baseMemory = 120  # Memory coefficient (GB per Gb)
+        Int overhead = 4       # Overhead memory (GB)
+        String modules
+        Int memory = 1
+        Int timeout = 1
+    }
+
+    command <<<
+        set -euo pipefail
+        grep -E '^chr[0-9XY]{1,2}\s' ~{refFai} > filtered_genome.fasta.fai
+
+        awk -v coef=~{baseMemory} -v over=~{overhead} '{
+            size_gb = $2 / 1e9
+            memory = int(size_gb * coef + over + 0.5)
+            region = $1 ":1-" $2
+            print region "\t" memory > "region_memory_map.tsv"  # Tab-separated key-value map
+            print region > "regions.txt"  # List of regions only
+        }' filtered_genome.fasta.fai > region_memory_map.json
+    >>>
+
+    runtime {
+        memory:  "~{memory} GB"
+        modules: "~{modules}"
+        timeout: "~{timeout}"
+    }
+    output {
+        Array[String] regions = read_lines("regions.txt")  # Array of regions only
+        Map[String, Int] region_memory_map = read_map("region_memory_map.tsv")  # Map of region to memory
+    }
+}   
 
 # ==========================
 #  configure and run vardict
@@ -96,8 +153,9 @@ task runVardict {
         String READ_POSTION_FILTER = 5
         String modules
         String bed_file
-        Int timeout = 48
-        Int jobMemory = 48
+        Int timeout = 96
+        String region
+        Int mem_allocate
     }
     parameter_meta {
         tumor_bam: "tumor_bam file for analysis sample"
@@ -110,15 +168,16 @@ task runVardict {
         MAP_QUAL: " Mapping quality. If set, reads with mapping quality less than the number will be filtered and ignored"
         READ_POSTION_FILTER: "The read position filter. If the mean variants position is less that specified, it is considered false positive. Default: 5"
         bed_file: "BED files for specifying regions of interest"
-        jobMemory: "Memory in Gb for this job"
         modules: "Names and versions of modules"
         timeout: "Timeout in hours, needed to override imposed limits"
-    }
+    } 
 
     command <<<
         set -euo pipefail
         cp ~{refFai} .
-        export JAVA_OPTS="-Xmx~{jobMemory - 6}G "
+        
+        export JAVA_OPTS="-Xmx$(echo "scale=0; ~{mem_allocate} * 0.9 / 1" | bc)G"
+
         $VARDICT_ROOT/bin/VarDict \
             -G ~{refFasta} \
             -f ~{AF_THR} \
@@ -136,13 +195,57 @@ task runVardict {
     >>>
 
     runtime {
-        memory:  "~{jobMemory} GB"
         modules: "~{modules}"
         timeout: "~{timeout}"
+        jobMemory: "~{mem_allocate} GB"
     }
 
     output {
         File vcf_file = "~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf"
 
     }
+}
+
+task mergeVCFs {
+  input {
+    String modules = "gatk"
+    Array[File] vcfs
+    Int memory = 4
+    Int timeout = 12
+  }
+
+  parameter_meta {
+    modules: "Environment module names and version to load (space separated) before command execution"
+    vcfs: "Vcf's from scatter to merge together"
+    memory: "Memory allocated for job"
+    timeout: "Hours before task timeout"
+  }
+
+  meta {
+    output_meta: {
+      mergedVcf: "Merged vcf, unfiltered.",
+      mergedVcfIdx: "Merged vcf index, unfiltered."
+    }
+  }
+
+  String outputName = basename(vcfs[0])
+
+  command <<<
+    set -euo pipefail
+
+    gatk --java-options "-Xmx~{memory-3}g" MergeVcfs \
+    -I ~{sep=" -I " vcfs} \
+    -O ~{outputName}
+  >>>
+
+  runtime {
+    memory:  "~{memory} GB"
+    modules: "~{modules}"
+    timeout: "~{timeout}"
+  }
+
+  output {
+    File mergedVcf = "~{outputName}"
+    File mergedVcfIdx = "~{outputName}.idx"
+  }
 }
