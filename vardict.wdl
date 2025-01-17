@@ -30,15 +30,15 @@ workflow vardict {
 
     Map[String, GenomeResources] resources = {
         "hg19": {
-            "refFai" : "$HG19_ROOT/hg19_random.fa.fai",
+            "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.fa.fai",
             "refFasta" : "$HG19_ROOT/hg19_random.fa",
-            "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3",
+            "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 htslib/1.9",
             "splitRegionModule": "hg19/p13"
         },
         "hg38": {
             "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa.fai",
             "refFasta" : "$HG38_ROOT/hg38_random.fa",
-            "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3",
+            "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 htslib/1.9",
             "splitRegionModule": "hg38/p12"
         }
     }
@@ -63,14 +63,17 @@ workflow vardict {
                 refFai = resources[reference].refFai,
                 refFasta = resources[reference].refFasta,
                 region = region,
-                mem_allocate = splitRegion.region_memory_map[region]
+                memory = splitRegion.region_memory_map[region]
         }
     }
     Array[File] vardictVcfs = runVardict.vcf_file
+    Array[File] vardictVcfIndexes = runVardict.vcf_index
 
     call mergeVCFs {
     input:
-      vcfs = vardictVcfs
+      vcfs = vardictVcfs,
+      vcfIndexes = vardictVcfIndexes,
+      refFasta = resources[reference].refFasta
     }
 
 
@@ -106,7 +109,7 @@ workflow vardict {
 task splitRegion {
     input {
         File refFai  
-        Int baseMemory = 120  # Memory coefficient (GB per Gb)
+        Int baseMemory = 500  # Memory coefficient (GB per Gb)
         Int overhead = 4       # Overhead memory (GB)
         String modules
         Int memory = 1
@@ -120,10 +123,10 @@ task splitRegion {
         awk -v coef=~{baseMemory} -v over=~{overhead} '{
             size_gb = $2 / 1e9
             memory = int(size_gb * coef + over + 0.5)
-            region = $1 ":1-" $2
+            region = $1 "_1_" $2
             print region "\t" memory > "region_memory_map.tsv"  # Tab-separated key-value map
             print region > "regions.txt"  # List of regions only
-        }' filtered_genome.fasta.fai > region_memory_map.json
+        }' filtered_genome.fasta.fai 
     >>>
 
     runtime {
@@ -155,7 +158,7 @@ task runVardict {
         String bed_file
         Int timeout = 96
         String region
-        Int mem_allocate
+        Int memory
     }
     parameter_meta {
         tumor_bam: "tumor_bam file for analysis sample"
@@ -175,8 +178,9 @@ task runVardict {
     command <<<
         set -euo pipefail
         cp ~{refFai} .
+        original_region=$(echo ~{region} | sed 's/_/:/; s/_/-/')
         
-        export JAVA_OPTS="-Xmx$(echo "scale=0; ~{mem_allocate} * 0.9 / 1" | bc)G"
+        export JAVA_OPTS="-Xmx$(echo "scale=0; ~{memory} * 0.9 / 1" | bc)G"
 
         $VARDICT_ROOT/bin/VarDict \
             -G ~{refFasta} \
@@ -186,30 +190,35 @@ task runVardict {
             -Q ~{MAP_QUAL} \
             -P ~{READ_POSTION_FILTER} \
             -c 1 -S 2 -E 3 -g 4 \
+            -R ${original_region} \
             ~{bed_file} | \
             $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
             $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
             -N "~{tumor_sample_name}|~{normal_sample_name}" \
-            -f ~{AF_THR}  > ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf
-  
+            -f ~{AF_THR} | gzip  > ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz
+
+        $HTSLIB_ROOT/bin/tabix -p vcf ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz
     >>>
 
     runtime {
         modules: "~{modules}"
         timeout: "~{timeout}"
-        jobMemory: "~{mem_allocate} GB"
+        memory:  "~{memory} GB"
     }
 
     output {
-        File vcf_file = "~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf"
+        File vcf_file = "~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz"
+        File vcf_index = "~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.tbi"
 
     }
 }
 
 task mergeVCFs {
   input {
-    String modules = "gatk"
+    String modules = "gatk/4.2.6.1 picard/3.1.0"
     Array[File] vcfs
+    Array[File] vcfIndexes
+    String refFasta
     Int memory = 4
     Int timeout = 12
   }
@@ -232,6 +241,10 @@ task mergeVCFs {
 
   command <<<
     set -euo pipefail
+
+    java -jar $PICARD_ROOT/picard.jar CreateSequenceDictionary \
+        R=~{refFasta} \
+        O=$(basename(~{refFasta}) fa).dict
 
     gatk --java-options "-Xmx~{memory-3}g" MergeVcfs \
     -I ~{sep=" -I " vcfs} \
