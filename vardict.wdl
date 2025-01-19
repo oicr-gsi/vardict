@@ -5,7 +5,6 @@ struct GenomeResources {
     String refFasta
     String refDict
     String modules
-    String splitRegionModule
     String mergeVcfModules
 }
 
@@ -17,7 +16,6 @@ workflow vardict {
         String normal_sample_name
         String bed_file
         String reference
-        Int mem_coefficient
     }
 
     parameter_meta {
@@ -27,7 +25,6 @@ workflow vardict {
         normal_sample_name: "Sample name for the normal bam"
         bed_file: "BED files for specifying regions of interest"
         reference: "the reference genome for input sample"
-        intervalsToParallelizeBy: "Comma separated list of intervals to split by (e.g. chr1,chr2,chr3+chr4)"
     }
 
     Map[String, GenomeResources] resources = {
@@ -35,29 +32,25 @@ workflow vardict {
             "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.fa.fai",
             "refFasta" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.fa",
             "refDict" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.dict",
-            "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3",
-            "splitRegionModule": "hg19/p13",
-            "mergeVcfModules": "gatk hg19/p13"
+            "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9",
+            "mergeVcfModules": "picard/2.19.2 hg19/p13"
         },
         "hg38": {
             "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa.fai",
             "refFasta" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa",
             "refDict" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.dict",
-            "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3",
-            "splitRegionModule": "hg38/p12",
-            "mergeVcfModules": "gatk hg38/p12"
+            "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9",
+            "mergeVcfModules": "picard/2.19.2  hg38/p12"
         }
     }
 
-    call splitRegion {
+    call splitBedByChromosome {
         input:
-        refFai = resources[reference].refFai,
-        mem_coefficient = mem_coefficient,
-        modules = resources [ reference ].splitRegionModule
+        bed_file = bed_file
     }
 
     # run vardict
-    scatter (region in splitRegion.regions) {
+    scatter (bed_file in splitBedByChromosome.bed_files) {
         call runVardict { 
             input: 
                 tumor_bam = tumor_bam,
@@ -68,20 +61,18 @@ workflow vardict {
                 modules = resources [ reference ].modules,
                 refFai = resources[reference].refFai,
                 refFasta = resources[reference].refFasta,
-                region = region,
-                memory = splitRegion.region_memory_map[region]
         }
     }
     Array[File] vardictVcfs = runVardict.vcf_file
+    Array[File] vardictVcfIndexes = runVardict.vcf_index
 
     call mergeVCFs {
     input:
       vcfs = vardictVcfs,
+      vcfIndexes = vardictVcfIndexes,
       refDict = resources[reference].refDict,
-      refFasta = resources[reference].refFasta,
       modules = resources[reference].mergeVcfModules
     }
-
 
     meta {
         author: "Gavin Peng"
@@ -112,37 +103,39 @@ workflow vardict {
 
 }
 
-task splitRegion {
+task splitBedByChromosome {
     input {
-        File refFai  
-        Int mem_coefficient = 500  # Memory coefficient (GB per Gb)
-        Int overhead = 4       # Overhead memory (GB)
-        String modules
+        File bed_file  
         Int memory = 1
         Int timeout = 1
+    }
+    parameter_meta {
+        bed_file: "Input BED file to split"
+        memory: "Memory allocated for task in GB"
+        timeout: "Timeout in hours"
     }
 
     command <<<
         set -euo pipefail
-        grep -E '^chr[0-9XY]{1,2}\s' ~{refFai} > filtered_genome.fasta.fai
-
-        awk -v coef=~{mem_coefficient} -v over=~{overhead} '{
-            size_gb = $2 / 1e9
-            memory = int(size_gb * coef + over + 0.5)
-            region = $1 "_1_" $2
-            print region "\t" memory > "region_memory_map.tsv"  # Tab-separated key-value map
-            print region > "regions.txt"  # List of regions only
-        }' filtered_genome.fasta.fai 
+        
+        mkdir split_beds
+        CHROMS=($(seq 1 22) X Y)
+        
+        for chr in "${CHROMS[@]}"; do
+            grep -E "^(chr)?${chr}[[:space:]]" ~{bed_file} > split_beds/chr${chr}.bed || true
+            if [ -s split_beds/chr${chr}.bed ]; then
+                echo "split_beds/chr${chr}.bed" >> split_beds.list
+            fi
+        done
     >>>
+
+    output {
+        Array[File] bed_files = read_lines("split_beds.list")
+    }
 
     runtime {
         memory:  "~{memory} GB"
-        modules: "~{modules}"
         timeout: "~{timeout}"
-    }
-    output {
-        Array[String] regions = read_lines("regions.txt")  # Array of regions only
-        Map[String, Int] region_memory_map = read_map("region_memory_map.tsv")  # Map of region to memory
     }
 }   
 
@@ -163,7 +156,6 @@ task runVardict {
         String modules
         String bed_file
         Int timeout = 96
-        String region
         Int memory
     }
     parameter_meta {
@@ -184,7 +176,6 @@ task runVardict {
     command <<<
         set -euo pipefail
         cp ~{refFai} .
-        original_region=$(echo ~{region} | sed 's/_/:/; s/_/-/')
         
         export JAVA_OPTS="-Xmx$(echo "scale=0; ~{memory} * 0.9 / 1" | bc)G"
 
@@ -196,12 +187,20 @@ task runVardict {
             -Q ~{MAP_QUAL} \
             -P ~{READ_POSTION_FILTER} \
             -c 1 -S 2 -E 3 -g 4 \
-            -R ${original_region} \
             ~{bed_file} | \
             $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
             $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
             -N "~{tumor_sample_name}|~{normal_sample_name}" \
-            -f ~{AF_THR} | gzip  > ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz
+            -f ~{AF_THR} | gzip  > vardict.vcf.gz
+
+            # the vardict generated vcf header missing contig name, need extract contig lines from refFai
+            bcftools view -h vardict.vcf.gz > header.txt     
+            while read -r name length rest; do 
+                echo "##contig=<ID=$name,length=$length>" 
+            done < ~{refFai} >> header.txt
+
+            bcftools reheader -h header.txt -o ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz vardict.vcf.gz
+            bcftools index --tbi ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz
     >>>
 
     runtime {
@@ -212,6 +211,7 @@ task runVardict {
 
     output {
         File vcf_file = "~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz"
+        File vcf_index = "~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz.tbi"
     }
 }
 
@@ -219,8 +219,8 @@ task mergeVCFs {
   input {
     String modules
     Array[File] vcfs
+    Array[File] vcfIndexes 
     String refDict
-    String refFasta
     Int memory = 4
     Int timeout = 12
   }
@@ -244,11 +244,10 @@ task mergeVCFs {
   command <<<
     set -euo pipefail
 
-    cp ~{refDict} .
-
-    gatk --java-options "-Xmx~{memory-3}g" MergeVcfs \
-    -I ~{sep=" -I " vcfs} \
-    -O ~{outputName}
+    java "-Xmx~{memory-3}g" -jar $PICARD_ROOT/picard.jar MergeVcfs \
+    I=~{sep=" I=" vcfs} \
+    O=~{outputName} \
+    SEQUENCE_DICTIONARY=~{refDict}
   >>>
 
   runtime {
@@ -259,6 +258,6 @@ task mergeVCFs {
 
   output {
     File mergedVcf = "~{outputName}"
-    File mergedVcfIdx = "~{outputName}.idx"
+    File mergedVcfIdx = "~{outputName}.tbi"
   }
 }
