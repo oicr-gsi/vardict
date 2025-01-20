@@ -67,7 +67,7 @@ workflow vardict {
     Array[File] vardictVcfs = runVardict.vcf_file
     Array[File] vardictVcfIndexes = runVardict.vcf_index
 
-    call mergeVCFs {
+    call mergeVcfs {
     input:
       vcfs = vardictVcfs,
       vcfIndexes = vardictVcfIndexes,
@@ -102,8 +102,8 @@ workflow vardict {
     }
     
     output {
-        File vardictVcf = mergeVCFs.mergedVcf
-        File vardictVcfIndex = mergeVCFs.mergedVcfIdx
+        File vardictVcf = mergeVcfs.mergedVcf
+        File vardictVcfIndex = mergeVcfs.mergedVcfIdx
     }
 
 }
@@ -233,7 +233,7 @@ task runVardict {
     }
 }
 
-task mergeVCFs {
+task mergeVcfs {
   input {
     String modules
     Array[File] vcfs
