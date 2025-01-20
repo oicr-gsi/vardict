@@ -50,14 +50,16 @@ workflow vardict {
     }
 
     # run vardict
-    scatter (bed_file in splitBedByChromosome.bed_files) {
+
+    scatter (i in range(length(splitBedByChromosome.bed_files))) {
         call runVardict { 
             input: 
                 tumor_bam = tumor_bam,
                 normal_bam = normal_bam,
                 tumor_sample_name = tumor_sample_name,
                 normal_sample_name = normal_sample_name,
-                bed_file = bed_file,
+                bed_file = splitBedByChromosome.bed_files[i],
+                memory_coefficient = splitBedByChromosome.memory_coefficients[i],
                 modules = resources [ reference ].modules,
                 refFai = resources[reference].refFai,
                 refFasta = resources[reference].refFasta,
@@ -125,12 +127,20 @@ task splitBedByChromosome {
             grep -E "^(chr)?${chr}[[:space:]]" ~{bed_file} > split_beds/chr${chr}.bed || true
             if [ -s split_beds/chr${chr}.bed ]; then
                 echo "split_beds/chr${chr}.bed" >> split_beds.list
+                # Calculate range size for this bed
+                range_size=$(awk '{sum += ($3 - $2)} END {print sum}' split_beds/chr${chr}.bed)
+                echo "${range_size}" >> range_sizes.txt
             fi
         done
+        max_size=$(sort -n range_sizes.txt | tail -n1)
+        while IFS= read -r size; do
+            awk -v size="$size" -v max="$max_size" 'BEGIN {printf "%.1f\n", size/max}' 
+        done < range_sizes.txt > memory_coefficients.txt
     >>>
 
     output {
         Array[File] bed_files = read_lines("split_beds.list")
+        Array[Float] memory_coefficients = read_lines("memory_coefficients.txt")
     }
 
     runtime {
@@ -156,7 +166,9 @@ task runVardict {
         String modules
         String bed_file
         Int timeout = 96
-        Int memory
+        Int memory = 32
+        Int minMemory = 24
+        Float memory_coefficient
     }
     parameter_meta {
         tumor_bam: "tumor_bam file for analysis sample"
@@ -172,13 +184,13 @@ task runVardict {
         modules: "Names and versions of modules"
         timeout: "Timeout in hours, needed to override imposed limits"
     } 
+    Int allocatedMemory = if minMemory > round(memory * memory_coefficient) then minMemory else round(memory * memory_coefficient)
 
     command <<<
         set -euo pipefail
         cp ~{refFai} .
         
         export JAVA_OPTS="-Xmx$(echo "scale=0; ~{memory} * 0.9 / 1" | bc)G"
-
         $VARDICT_ROOT/bin/VarDict \
             -G ~{refFasta} \
             -f ~{AF_THR} \
@@ -206,7 +218,7 @@ task runVardict {
     runtime {
         modules: "~{modules}"
         timeout: "~{timeout}"
-        memory:  "~{memory} GB"
+        memory:  "~{allocatedMemory} GB"
     }
 
     output {
