@@ -1,13 +1,33 @@
 ## Commands
  This section lists command(s) run by vardict workflow
  
- * Running Vardict
-
+ * Running vardict
  
  ```
          set -euo pipefail
+         
+         mkdir split_beds
+         CHROMS=($(seq 1 22) X Y)
+         
+         for chr in "${CHROMS[@]}"; do
+             grep -E "^(chr)?${chr}[[:space:]]" ~{bed_file} > split_beds/chr${chr}.bed || true
+             if [ -s split_beds/chr${chr}.bed ]; then
+                 echo "split_beds/chr${chr}.bed" >> split_beds.list
+                 # Calculate range size for this bed
+                 range_size=$(awk '{sum += ($3 - $2)} END {print sum}' split_beds/chr${chr}.bed)
+                 echo "${range_size}" >> range_sizes.txt
+             fi
+         done
+         max_size=$(sort -n range_sizes.txt | tail -n1)
+         while IFS= read -r size; do
+             awk -v size="$size" -v max="$max_size" 'BEGIN {printf "%.1f\n", size/max}' 
+         done < range_sizes.txt > memory_coefficients.txt
+```
+ ```
+         set -euo pipefail
          cp ~{refFai} .
-         export JAVA_OPTS="-Xmx~{jobMemory - 6}G "
+         
+         export JAVA_OPTS="-Xmx$(echo "scale=0; ~{memory} * 0.9 / 1" | bc)G"
          $VARDICT_ROOT/bin/VarDict \
              -G ~{refFasta} \
              -f ~{AF_THR} \
@@ -20,6 +40,22 @@
              $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
              $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
              -N "~{tumor_sample_name}|~{normal_sample_name}" \
-             -f ~{AF_THR}  > ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf
-   
+             -f ~{AF_THR} | gzip  > vardict.vcf.gz
+ 
+             # the vardict generated vcf header missing contig name, need extract contig lines from refFai
+             bcftools view -h vardict.vcf.gz > header.txt     
+             while read -r name length rest; do 
+                 echo "##contig=<ID=$name,length=$length>" 
+             done < ~{refFai} >> header.txt
+ 
+             bcftools reheader -h header.txt -o ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz vardict.vcf.gz
+             bcftools index --tbi ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz
+```
+ ```
+     set -euo pipefail
+ 
+     java "-Xmx~{memory-3}g" -jar $PICARD_ROOT/picard.jar MergeVcfs \
+     I=~{sep=" I=" vcfs} \
+     O=~{outputName} \
+     SEQUENCE_DICTIONARY=~{refDict}
 ```

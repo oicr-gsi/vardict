@@ -50,7 +50,6 @@ workflow vardict {
     }
 
     # run vardict
-
     scatter (i in range(length(splitBedByChromosome.bed_files))) {
         call runVardict { 
             input: 
@@ -94,6 +93,10 @@ workflow vardict {
             vardict_vcf: {
                 description: "VCF file for variant calling from vardict",
                 vidarr_label: "vardict_vcf"
+            },
+            vardictVcfIndex: {
+                description: "VCF index for variant calling from vardict",
+                vidarr_label: "vardcit_index"
             }
         }
     }
@@ -183,6 +186,9 @@ task runVardict {
         bed_file: "BED files for specifying regions of interest"
         modules: "Names and versions of modules"
         timeout: "Timeout in hours, needed to override imposed limits"
+        memory: "base memory for this job"
+        memory_coefficient: "coefficient for calculating allocated memory"
+        minMemory: "The minimum value for allocated memory"
     } 
     Int allocatedMemory = if minMemory > round(memory * memory_coefficient) then minMemory else round(memory * memory_coefficient)
 
@@ -240,8 +246,10 @@ task mergeVCFs {
   parameter_meta {
     modules: "Environment module names and version to load (space separated) before command execution"
     vcfs: "Vcf's from scatter to merge together"
+    vcfIndexes: "The indices for the input vcfs"
     memory: "Memory allocated for job"
     timeout: "Hours before task timeout"
+    refDict: "reference sequence dictionary"
   }
 
   meta {
