@@ -41,12 +41,12 @@
             "vardict.splitBedByChromosome.memory": null,
             "vardict.splitBedByChromosome.timeout": null,
             "vardict.splitBedByChromosome.bed_file": null,
-            "vardict.mergVcfs.memory": null,
-            "vardict.mergVcfs.modules": null,
-            "vardict.mergVcfs.timeout": null,
-            "vardict.mergVcfs.refDict": null,
-            "vardict.mergVcfs.vcfs": null,
-            "vardict.mergVcfs.vcfIndexes": null
+            "vardict.mergeVcfs.memory": null,
+            "vardict.mergeVcfs.modules": null,
+            "vardict.mergeVcfs.timeout": null,
+            "vardict.mergeVcfs.refDict": null,
+            "vardict.mergeVcfs.vcfs": null,
+            "vardict.mergeVcfs.vcfIndexes": null
         },
         "description": "vardict workflow test",
         "engineArguments": {
