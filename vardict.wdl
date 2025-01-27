@@ -135,10 +135,17 @@ task splitBedByChromosome {
                 echo "${range_size}" >> range_sizes.txt
             fi
         done
+        min_coff=0.8
+        p=0.8
         max_size=$(sort -n range_sizes.txt | tail -n1)
-        while IFS= read -r size; do
-            awk -v size="$size" -v max="$max_size" 'BEGIN {printf "%.1f\n", size/max}' 
-        done < range_sizes.txt > memory_coefficients.txt
+
+        awk -v max="$max_size" -v min_coff="$min_coff" -v p="$p" '
+        {
+            size = $1
+            ratio = size / max
+            coefficient = min_coff + (1 - min_coff) * (ratio ^ p)
+            printf "%.2f\n", coefficient
+        }' range_sizes.txt > memory_coefficients.txt
     >>>
 
     output {
@@ -168,7 +175,7 @@ task runVardict {
         String READ_POSTION_FILTER = 5
         String modules
         String bed_file
-        Int timeout = 96
+        Int timeout = 120
         Int memory = 32
         Int minMemory = 24
         Float memory_coefficient
@@ -196,7 +203,7 @@ task runVardict {
         set -euo pipefail
         cp ~{refFai} .
         
-        export JAVA_OPTS="-Xmx$(echo "scale=0; ~{memory} * 0.9 / 1" | bc)G"
+        export JAVA_OPTS="-Xmx$(echo "scale=0; ~{allocatedMemory} * 0.8 / 1" | bc)G"
         $VARDICT_ROOT/bin/VarDict \
             -G ~{refFasta} \
             -f ~{AF_THR} \
