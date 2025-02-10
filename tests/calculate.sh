@@ -5,4 +5,4 @@ set -o pipefail
 
 cd $1
 
-for f in $(find . -xtype f -name "*.vcf.gz" | sort -V);do zcat $f | grep -v ^# | md5sum
+for f in $(find . -xtype f -name "*.vcf.gz" | sort -V);do zcat $f | grep -v ^# | md5sum; done
