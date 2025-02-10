@@ -27,7 +27,7 @@
             },
             "vardict.normal_sample_name": "PCSI0022R",
             "vardict.runVardict.MAP_QUAL": null,
-            "vardict.runVardict.READ_POSTION_FILTER": null,
+            "vardict.runVardict.READ_POSITION_FILTER": null,
             "vardict.runVardict.timeout": 48,
             "vardict.runVardict.modules": null,
             "vardict.runVardict.memory": null,
