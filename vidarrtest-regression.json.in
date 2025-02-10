@@ -33,6 +33,7 @@
             "vardict.runVardict.memory": null,
             "vardict.runVardict.memory_coefficient": null,
             "vardict.runVardict.minMemory": null,
+            "vardict.runVardict.numThreads": 8,
             "vardict.bed_file": "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022.val.bed",
             "vardict.runVardict.refFasta": null,
             "vardict.tumor_sample_name": "PCSI0022P",

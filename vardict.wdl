@@ -172,12 +172,13 @@ task runVardict {
         String refFai
         String AF_THR = 0.01
         String MAP_QUAL = 10
-        String READ_POSTION_FILTER = 5
+        String READ_POSITION_FILTER = 5
         String modules
         String bed_file
         Int timeout = 120
         Int memory = 32
         Int minMemory = 24
+        Int numThreads = 8
         Float memory_coefficient
     }
     parameter_meta {
@@ -189,7 +190,7 @@ task runVardict {
         refFasta: "The reference fasta"
         AF_THR: "The threshold for allele frequency, default: 0.01 or 1%"
         MAP_QUAL: " Mapping quality. If set, reads with mapping quality less than the number will be filtered and ignored"
-        READ_POSTION_FILTER: "The read position filter. If the mean variants position is less that specified, it is considered false positive. Default: 5"
+        READ_POSITION_FILTER : "The read position filter. If the mean variants position is less that specified, it is considered false positive. Default: 5"
         bed_file: "BED files for specifying regions of interest"
         modules: "Names and versions of modules"
         timeout: "Timeout in hours, needed to override imposed limits"
@@ -205,12 +206,13 @@ task runVardict {
         
         export JAVA_OPTS="-Xmx$(echo "scale=0; ~{allocatedMemory} * 0.8 / 1" | bc)G"
         $VARDICT_ROOT/bin/VarDict \
+            -th ~{numThreads} \
             -G ~{refFasta} \
             -f ~{AF_THR} \
             -N ~{tumor_sample_name} \
             -b "~{tumor_bam}|~{normal_bam}" \
             -Q ~{MAP_QUAL} \
-            -P ~{READ_POSTION_FILTER} \
+            -P ~{READ_POSITION_FILTER} \
             -c 1 -S 2 -E 3 -g 4 \
             ~{bed_file} | \
             $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
