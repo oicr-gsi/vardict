@@ -32,14 +32,14 @@ workflow vardict {
             "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.fa.fai",
             "refFasta" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.fa",
             "refDict" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.dict",
-            "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9",
+            "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
             "mergeVcfModules": "picard/2.19.2 hg19/p13"
         },
         "hg38": {
             "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa.fai",
             "refFasta" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa",
             "refDict" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.dict",
-            "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9",
+            "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
             "mergeVcfModules": "picard/2.19.2  hg38/p12"
         }
     }
@@ -218,7 +218,7 @@ task runVardict {
             $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
             $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
             -N "~{tumor_sample_name}|~{normal_sample_name}" \
-            -f ~{AF_THR} | gzip  > vardict.vcf.gz
+            -f ~{AF_THR} | bgzip  > vardict.vcf.gz
 
             # the vardict generated vcf header missing contig name, need extract contig lines from refFai
             bcftools view -h vardict.vcf.gz > header.txt     
@@ -227,7 +227,7 @@ task runVardict {
             done < ~{refFai} >> header.txt
 
             bcftools reheader -h header.txt -o ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz vardict.vcf.gz
-            bcftools index --tbi ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz
+            tabix -p vcf ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz
     >>>
 
     runtime {
@@ -270,11 +270,56 @@ task mergeVcfs {
 
   String outputName = basename(vcfs[0])
 
-  command <<<
+   command <<<
     set -euo pipefail
+    # normalize vcf file from vardict since vardict may generate vcf with non-standard notation
+    fixed_vcfs=""
+
+    echo '~{sep="\n" vcfs}' > vcf_files.txt
+
+    while IFS= read -r VCF_FILE; do
+      FIXED_VCF="$(basename ${VCF_FILE%.gz})_fixed.vcf"
+      
+      if [[ $VCF_FILE == *.gz ]]; then
+        INPUT_COMMAND="zcat"
+      else
+        INPUT_COMMAND="cat"
+      fi
+
+      $INPUT_COMMAND "$VCF_FILE" | awk '
+        BEGIN { dup_pattern = "<dup-[0-9]+>" }
+        # Print all header lines unchanged
+        /^#/ { print; next }
+        # Process non-header lines
+        {
+          if ($0 ~ dup_pattern) {
+            # Extract dup size
+            match($0, /<dup-([0-9]+)>/, dup)
+            svlen = dup[1]
+            end = $2 + svlen
+            
+            # Replace dup-XX with DUP
+            gsub(/<dup-[0-9]+>/, "<DUP>", $5)
+            
+            # Update INFO field
+            if ($8 ~ /TYPE=Insertion/) {
+              sub(/TYPE=Insertion/, "SVTYPE=DUP", $8)
+              $8 = $8 ";SVLEN=" svlen ";END=" end
+            }
+          }
+          print
+        }' > "$FIXED_VCF"
+
+      fixed_vcfs="${fixed_vcfs} ${FIXED_VCF}"
+    done < vcf_files.txt
+
+    input_args=""
+    for vcf in $fixed_vcfs; do
+      input_args="$input_args I=$vcf"
+    done
 
     java "-Xmx~{memory-3}g" -jar $PICARD_ROOT/picard.jar MergeVcfs \
-    I=~{sep=" I=" vcfs} \
+    $input_args \
     O=~{outputName} \
     SEQUENCE_DICTIONARY=~{refDict}
   >>>
