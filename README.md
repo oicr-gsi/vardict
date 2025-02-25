@@ -42,12 +42,13 @@ Parameter|Value|Default|Description
 `splitBedByChromosome.timeout`|Int|1|Timeout in hours
 `runVardict.AF_THR`|String|0.01|The threshold for allele frequency, default: 0.01 or 1%
 `runVardict.MAP_QUAL`|String|10| Mapping quality. If set, reads with mapping quality less than the number will be filtered and ignored
-`runVardict.READ_POSTION_FILTER`|String|5|The read position filter. If the mean variants position is less that specified, it is considered false positive. Default: 5
-`runVardict.timeout`|Int|96|Timeout in hours, needed to override imposed limits
+`runVardict.READ_POSITION_FILTER`|String|5|The read position filter. If the mean variants position is less that specified, it is considered false positive. Default: 5
+`runVardict.timeout`|Int|120|Timeout in hours, needed to override imposed limits
 `runVardict.memory`|Int|32|base memory for this job
 `runVardict.minMemory`|Int|24|The minimum value for allocated memory
-`mergeVCFs.memory`|Int|4|Memory allocated for job
-`mergeVCFs.timeout`|Int|12|Hours before task timeout
+`runVardict.numThreads`|Int|8|Number of threads
+`mergeVcfs.memory`|Int|4|Memory allocated for job
+`mergeVcfs.timeout`|Int|12|Hours before task timeout
 
 
 ### Outputs
@@ -59,65 +60,118 @@ Output | Type | Description | Labels
 
 
 ## Commands
- This section lists command(s) run by vardict workflow
- 
- * Running vardict
- 
- ```
-         set -euo pipefail
-         
-         mkdir split_beds
-         CHROMS=($(seq 1 22) X Y)
-         
-         for chr in "${CHROMS[@]}"; do
-             grep -E "^(chr)?${chr}[[:space:]]" ~{bed_file} > split_beds/chr${chr}.bed || true
-             if [ -s split_beds/chr${chr}.bed ]; then
-                 echo "split_beds/chr${chr}.bed" >> split_beds.list
-                 # Calculate range size for this bed
-                 range_size=$(awk '{sum += ($3 - $2)} END {print sum}' split_beds/chr${chr}.bed)
-                 echo "${range_size}" >> range_sizes.txt
-             fi
-         done
-         max_size=$(sort -n range_sizes.txt | tail -n1)
-         while IFS= read -r size; do
-             awk -v size="$size" -v max="$max_size" 'BEGIN {printf "%.1f\n", size/max}' 
-         done < range_sizes.txt > memory_coefficients.txt
+This section lists command(s) run by vardict workflow
+
+* Running vardict
+
 ```
- ```
-         set -euo pipefail
-         cp ~{refFai} .
-         
-         export JAVA_OPTS="-Xmx$(echo "scale=0; ~{memory} * 0.9 / 1" | bc)G"
-         $VARDICT_ROOT/bin/VarDict \
-             -G ~{refFasta} \
-             -f ~{AF_THR} \
-             -N ~{tumor_sample_name} \
-             -b "~{tumor_bam}|~{normal_bam}" \
-             -Q ~{MAP_QUAL} \
-             -P ~{READ_POSTION_FILTER} \
-             -c 1 -S 2 -E 3 -g 4 \
+        set -euo pipefail
+        
+        mkdir split_beds
+        CHROMS=($(seq 1 22) X Y)
+        
+        for chr in "${CHROMS[@]}"; do
+            grep -E "^(chr)?${chr}[[:space:]]" ~{bed_file} > split_beds/chr${chr}.bed || true
+            if [ -s split_beds/chr${chr}.bed ]; then
+                echo "split_beds/chr${chr}.bed" >> split_beds.list
+                # Calculate range size for this bed
+                range_size=$(awk '{sum += ($3 - $2)} END {print sum}' split_beds/chr${chr}.bed)
+                echo "${range_size}" >> range_sizes.txt
+            fi
+        done
+        min_coff=0.8
+        p=0.8
+        max_size=$(sort -n range_sizes.txt | tail -n1)
+
+        awk -v max="$max_size" -v min_coff="$min_coff" -v p="$p" '
+        {
+            size = $1
+            ratio = size / max
+            coefficient = min_coff + (1 - min_coff) * (ratio ^ p)
+            printf "%.2f\n", coefficient
+        }' range_sizes.txt > memory_coefficients.txt
+```
+```
+        set -euo pipefail
+        cp ~{refFai} .
+        
+        export JAVA_OPTS="-Xmx$(echo "scale=0; ~{allocatedMemory} * 0.8 / 1" | bc)G"
+        $VARDICT_ROOT/bin/VarDict \
+            -th ~{numThreads} \
+            -G ~{refFasta} \
+            -f ~{AF_THR} \
+            -N ~{tumor_sample_name} \
+            -b "~{tumor_bam}|~{normal_bam}" \
+            -Q ~{MAP_QUAL} \
+            -P ~{READ_POSITION_FILTER} \
+            -c 1 -S 2 -E 3 -g 4 \
              ~{bed_file} | \
-             $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
-             $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
-             -N "~{tumor_sample_name}|~{normal_sample_name}" \
-             -f ~{AF_THR} | gzip  > vardict.vcf.gz
- 
-             # the vardict generated vcf header missing contig name, need extract contig lines from refFai
-             bcftools view -h vardict.vcf.gz > header.txt     
-             while read -r name length rest; do 
-                 echo "##contig=<ID=$name,length=$length>" 
-             done < ~{refFai} >> header.txt
- 
-             bcftools reheader -h header.txt -o ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz vardict.vcf.gz
-             bcftools index --tbi ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz
+            $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
+            $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
+            -N "~{tumor_sample_name}|~{normal_sample_name}" \
+            -f ~{AF_THR} | bgzip  > vardict.vcf.gz
+
+            # the vardict generated vcf header missing contig name, need extract contig lines from refFai
+            bcftools view -h vardict.vcf.gz > header.txt     
+            while read -r name length rest; do 
+                echo "##contig=<ID=$name,length=$length>" 
+            done < ~{refFai} >> header.txt
+
+            bcftools reheader -h header.txt -o ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz vardict.vcf.gz
+            tabix -p vcf ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz
 ```
- ```
-     set -euo pipefail
- 
-     java "-Xmx~{memory-3}g" -jar $PICARD_ROOT/picard.jar MergeVcfs \
-     I=~{sep=" I=" vcfs} \
-     O=~{outputName} \
-     SEQUENCE_DICTIONARY=~{refDict}
+```
+    set -euo pipefail
+    # normalize vcf file from vardict since vardict may generate vcf with non-standard notation
+    fixed_vcfs=""
+
+    echo '~{sep="\n" vcfs}' > vcf_files.txt
+
+    while IFS= read -r VCF_FILE; do
+      FIXED_VCF="$(basename ${VCF_FILE%.gz})_fixed.vcf"
+      
+      if [[ $VCF_FILE == *.gz ]]; then
+        INPUT_COMMAND="zcat"
+      else
+        INPUT_COMMAND="cat"
+      fi
+
+      $INPUT_COMMAND "$VCF_FILE" | awk '
+        BEGIN { dup_pattern = "<dup-[0-9]+>" }
+        # Print all header lines unchanged
+        /^#/ { print; next }
+        # Process non-header lines
+        {
+          if ($0 ~ dup_pattern) {
+            # Extract dup size
+            match($0, /<dup-([0-9]+)>/, dup)
+            svlen = dup[1]
+            end = $2 + svlen
+            
+            # Replace dup-XX with DUP
+            gsub(/<dup-[0-9]+>/, "<DUP>", $5)
+            
+            # Update INFO field
+            if ($8 ~ /TYPE=Insertion/) {
+              sub(/TYPE=Insertion/, "SVTYPE=DUP", $8)
+              $8 = $8 ";SVLEN=" svlen ";END=" end
+            }
+          }
+          print
+        }' > "$FIXED_VCF"
+
+      fixed_vcfs="${fixed_vcfs} ${FIXED_VCF}"
+    done < vcf_files.txt
+
+    input_args=""
+    for vcf in $fixed_vcfs; do
+      input_args="$input_args I=$vcf"
+    done
+
+    java "-Xmx~{memory-3}g" -jar $PICARD_ROOT/picard.jar MergeVcfs \
+    $input_args \
+    O=~{tumor_sample_name}.vardict.vcf.gz \
+    SEQUENCE_DICTIONARY=~{refDict}
 ```
 
  ## Support

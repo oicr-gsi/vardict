@@ -70,6 +70,7 @@ workflow vardict {
     call mergeVcfs {
     input:
       vcfs = vardictVcfs,
+      tumor_sample_name = tumor_sample_name,
       vcfIndexes = vardictVcfIndexes,
       refDict = resources[reference].refDict,
       modules = resources[reference].mergeVcfModules
@@ -197,6 +198,7 @@ task runVardict {
         memory: "base memory for this job"
         memory_coefficient: "coefficient for calculating allocated memory"
         minMemory: "The minimum value for allocated memory"
+        numThreads: "Number of threads"
     } 
     Int allocatedMemory = if minMemory > round(memory * memory_coefficient) then minMemory else round(memory * memory_coefficient)
 
@@ -214,7 +216,7 @@ task runVardict {
             -Q ~{MAP_QUAL} \
             -P ~{READ_POSITION_FILTER} \
             -c 1 -S 2 -E 3 -g 4 \
-            ~{bed_file} | \
+             ~{bed_file} | \
             $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
             $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
             -N "~{tumor_sample_name}|~{normal_sample_name}" \
@@ -245,6 +247,7 @@ task runVardict {
 task mergeVcfs {
   input {
     String modules
+    String tumor_sample_name
     Array[File] vcfs
     Array[File] vcfIndexes 
     String refDict
@@ -267,8 +270,6 @@ task mergeVcfs {
       mergedVcfIdx: "Merged vcf index, unfiltered."
     }
   }
-
-  String outputName = basename(vcfs[0])
 
    command <<<
     set -euo pipefail
@@ -320,7 +321,7 @@ task mergeVcfs {
 
     java "-Xmx~{memory-3}g" -jar $PICARD_ROOT/picard.jar MergeVcfs \
     $input_args \
-    O=~{outputName} \
+    O=~{tumor_sample_name}.vardict.vcf.gz \
     SEQUENCE_DICTIONARY=~{refDict}
   >>>
 
@@ -331,7 +332,7 @@ task mergeVcfs {
   }
 
   output {
-    File mergedVcf = "~{outputName}"
-    File mergedVcfIdx = "~{outputName}.tbi"
+    File mergedVcf = "~{tumor_sample_name}.vardict.vcf.gz"
+    File mergedVcfIdx = "~{tumor_sample_name}.vardict.vcf.gz.tbi"
   }
 }
