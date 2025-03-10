@@ -63,8 +63,12 @@ workflow vardict {
                 refFai = resources[reference].refFai,
                 refFasta = resources[reference].refFasta,
         }
+        call normalizeVardictVcf {
+            input:
+                vcf_file = runVardict.vcf_file
+        }
     }
-    Array[File] vardictVcfs = runVardict.vcf_file
+    Array[File] vardictVcfs = normalizeVardictVcf.normalized_vcf
     Array[File] vardictVcfIndexes = runVardict.vcf_index
 
     call mergeVcfs {
@@ -244,6 +248,88 @@ task runVardict {
     }
 }
 
+task normalizeVardictVcf {
+  input {
+    File vcf_file
+    Int memory = 4
+    String modules = "python/3.6"
+    Int timeout = 12
+  }
+  parameter_meta {
+    modules: "Environment module names and version to load (space separated) before command execution"
+    vcf_file: "Vcf that's need be normalized because vardict generates non-standard notation vcf"
+    memory: "Memory allocated for job"
+    timeout: "Hours before task timeout"
+  }
+
+  String output_name = basename(vcf_file, ".vcf.gz") + ".normalized.vcf"
+
+command <<<
+    set -euo pipefail
+    # normalize vcf file from vardict since vardict may generate vcf with non-standard notation
+    
+    python3 <<CODE
+    import re
+    import gzip
+
+
+    input_file = "~{vcf_file}"
+    output_file = "~{output_name}"
+    in_fh = gzip.open(input_file, 'rt')
+    out_fh = open(output_file, 'w')
+
+    # Regex pattern for <dup-XX>
+    dup_pattern = re.compile(r'<dup-(\d+)>')
+
+    for line in in_fh:
+        # Output header lines unchanged
+        if line.startswith('#'):
+            out_fh.write(line)
+            continue
+
+        fields = line.strip().split('\t')
+        
+        # Look for <dup-XX> pattern in ALT field (field 5)
+        if len(fields) >= 5:
+            match = dup_pattern.search(fields[4])
+            if match:
+                # Extract dup size and calculate END position
+                dup_size = int(match.group(1))
+                pos = int(fields[1])
+                end = pos + dup_size
+                
+                # Replace <dup-XX> with <DUP> in ALT field
+                fields[4] = dup_pattern.sub('<DUP>', fields[4])
+                
+                # Update INFO field (field 8)
+                if len(fields) >= 8:
+                    info = fields[7]
+                    
+                    # Replace TYPE=Insertion with SVTYPE=DUP
+                    if 'TYPE=Insertion' in info:
+                        info = info.replace('TYPE=Insertion', 'SVTYPE=DUP')
+                        
+                        # Add SVLEN and END
+                        info = f"{info};SVLEN={dup_size};END={end}"
+                        
+                        fields[7] = info
+        
+        out_fh.write('\t'.join(fields) + '\n')
+
+    CODE
+>>>
+
+  output {
+    File normalized_vcf = "${output_name}"
+  }
+
+  runtime {
+    memory: "~{memory} GB"
+    modules: "~{modules}"
+    timeout: "~{timeout}"
+  }
+}
+
 task mergeVcfs {
   input {
     String modules
@@ -273,54 +359,9 @@ task mergeVcfs {
 
    command <<<
     set -euo pipefail
-    # normalize vcf file from vardict since vardict may generate vcf with non-standard notation
-    fixed_vcfs=""
-
-    echo '~{sep="\n" vcfs}' > vcf_files.txt
-
-    while IFS= read -r VCF_FILE; do
-      FIXED_VCF="$(basename ${VCF_FILE%.gz})_fixed.vcf"
-      
-      if [[ $VCF_FILE == *.gz ]]; then
-        INPUT_COMMAND="zcat"
-      else
-        INPUT_COMMAND="cat"
-      fi
-
-      $INPUT_COMMAND "$VCF_FILE" | awk '
-        BEGIN { dup_pattern = "<dup-[0-9]+>" }
-        # Print all header lines unchanged
-        /^#/ { print; next }
-        # Process non-header lines
-        {
-          if ($0 ~ dup_pattern) {
-            # Extract dup size
-            match($0, /<dup-([0-9]+)>/, dup)
-            svlen = dup[1]
-            end = $2 + svlen
-            
-            # Replace dup-XX with DUP
-            gsub(/<dup-[0-9]+>/, "<DUP>", $5)
-            
-            # Update INFO field
-            if ($8 ~ /TYPE=Insertion/) {
-              sub(/TYPE=Insertion/, "SVTYPE=DUP", $8)
-              $8 = $8 ";SVLEN=" svlen ";END=" end
-            }
-          }
-          print
-        }' > "$FIXED_VCF"
-
-      fixed_vcfs="${fixed_vcfs} ${FIXED_VCF}"
-    done < vcf_files.txt
-
-    input_args=""
-    for vcf in $fixed_vcfs; do
-      input_args="$input_args I=$vcf"
-    done
 
     java "-Xmx~{memory-3}g" -jar $PICARD_ROOT/picard.jar MergeVcfs \
-    $input_args \
+    ~{sep=" " prefix("I=", vcfs)} \
     O=~{tumor_sample_name}.vardict.vcf.gz \
     SEQUENCE_DICTIONARY=~{refDict}
   >>>
