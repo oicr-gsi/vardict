@@ -57,7 +57,7 @@ This section lists command(s) run by vardict workflow
             done < ~{refFai} >> header.txt
 
             bcftools reheader -h header.txt -o ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz vardict.vcf.gz
-            tabix -p vcf ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz
+            
 ```
 ```
     set -euo pipefail
@@ -110,8 +110,9 @@ This section lists command(s) run by vardict workflow
                         fields[7] = info
         
         out_fh.write('\t'.join(fields) + '\n')
-
     CODE
+    bgzip ~{output_name}
+    tabix -p vcf ~{output_name}.gz
 ```
 ```
     set -euo pipefail
@@ -120,4 +121,4 @@ This section lists command(s) run by vardict workflow
     ~{sep=" " prefix("I=", vcfs)} \
     O=~{tumor_sample_name}.vardict.vcf.gz \
     SEQUENCE_DICTIONARY=~{refDict}
-  ```
+```

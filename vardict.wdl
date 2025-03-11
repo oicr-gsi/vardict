@@ -32,14 +32,14 @@ workflow vardict {
             "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.fa.fai",
             "refFasta" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.fa",
             "refDict" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.dict",
-            "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
+            "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9",
             "mergeVcfModules": "picard/2.19.2 hg19/p13"
         },
         "hg38": {
             "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa.fai",
             "refFasta" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa",
             "refDict" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.dict",
-            "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
+            "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9",
             "mergeVcfModules": "picard/2.19.2  hg38/p12"
         }
     }
@@ -69,13 +69,13 @@ workflow vardict {
         }
     }
     Array[File] vardictVcfs = normalizeVardictVcf.normalized_vcf
-    Array[File] vardictVcfIndexes = runVardict.vcf_index
+    Array[File] vardictVcfIndexes = normalizeVardictVcf.vcf_index
 
     call mergeVcfs {
     input:
       vcfs = vardictVcfs,
-      tumor_sample_name = tumor_sample_name,
       vcfIndexes = vardictVcfIndexes,
+      tumor_sample_name = tumor_sample_name,
       refDict = resources[reference].refDict,
       modules = resources[reference].mergeVcfModules
     }
@@ -233,7 +233,7 @@ task runVardict {
             done < ~{refFai} >> header.txt
 
             bcftools reheader -h header.txt -o ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz vardict.vcf.gz
-            tabix -p vcf ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz
+            
     >>>
 
     runtime {
@@ -244,7 +244,6 @@ task runVardict {
 
     output {
         File vcf_file = "~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz"
-        File vcf_index = "~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz.tbi"
     }
 }
 
@@ -252,7 +251,7 @@ task normalizeVardictVcf {
   input {
     File vcf_file
     Int memory = 4
-    String modules = "python/3.6"
+    String modules = "python/3.6 htslib/1.9"
     Int timeout = 12
   }
   parameter_meta {
@@ -315,12 +314,14 @@ command <<<
                         fields[7] = info
         
         out_fh.write('\t'.join(fields) + '\n')
-
     CODE
+    bgzip ~{output_name}
+    tabix -p vcf ~{output_name}.gz
 >>>
 
   output {
-    File normalized_vcf = "${output_name}"
+    File normalized_vcf = "~{output_name}.gz"
+    File vcf_index ="~{output_name}.gz.tbi"
   }
 
   runtime {

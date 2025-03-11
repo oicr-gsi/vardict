@@ -48,7 +48,7 @@ Parameter|Value|Default|Description
 `runVardict.minMemory`|Int|24|The minimum value for allocated memory
 `runVardict.numThreads`|Int|8|Number of threads
 `normalizeVardictVcf.memory`|Int|4|Memory allocated for job
-`normalizeVardictVcf.modules`|String|"python/3.6"|Environment module names and version to load (space separated) before command execution
+`normalizeVardictVcf.modules`|String|"python/3.6 htslib/1.9"|Environment module names and version to load (space separated) before command execution
 `normalizeVardictVcf.timeout`|Int|12|Hours before task timeout
 `mergeVcfs.memory`|Int|4|Memory allocated for job
 `mergeVcfs.timeout`|Int|12|Hours before task timeout
@@ -60,7 +60,6 @@ Output | Type | Description | Labels
 ---|---|---|---
 `vardictVcf`|File|Merged vcf, unfiltered.|
 `vardictVcfIndex`|File|VCF index for variant calling from vardict|vidarr_label: vardcit_index
-
 
 ## Commands
 This section lists command(s) run by vardict workflow
@@ -121,7 +120,7 @@ This section lists command(s) run by vardict workflow
             done < ~{refFai} >> header.txt
 
             bcftools reheader -h header.txt -o ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz vardict.vcf.gz
-            tabix -p vcf ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz
+            
 ```
 ```
     set -euo pipefail
@@ -174,8 +173,9 @@ This section lists command(s) run by vardict workflow
                         fields[7] = info
         
         out_fh.write('\t'.join(fields) + '\n')
-
     CODE
+    bgzip ~{output_name}
+    tabix -p vcf ~{output_name}.gz
 ```
 ```
     set -euo pipefail
@@ -184,9 +184,9 @@ This section lists command(s) run by vardict workflow
     ~{sep=" " prefix("I=", vcfs)} \
     O=~{tumor_sample_name}.vardict.vcf.gz \
     SEQUENCE_DICTIONARY=~{refDict}
-  ```
+```
 
- ## Support
+## Support
 
 For support, please file an issue on the [Github project](https://github.com/oicr-gsi) or send an email to gsi@oicr.on.ca .
 
