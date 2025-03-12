@@ -268,52 +268,91 @@ command <<<
     # normalize vcf file from vardict since vardict may generate vcf with non-standard notation
     
     python3 <<CODE
+    import sys
     import re
     import gzip
-
+    import os
 
     input_file = "~{vcf_file}"
     output_file = "~{output_name}"
-    in_fh = gzip.open(input_file, 'rt')
-    out_fh = open(output_file, 'w')
 
-    # Regex pattern for <dup-XX>
+    is_gzipped = input_file.endswith('.gz')
+    if is_gzipped:
+        in_fh = gzip.open(input_file, 'rt')
+    else:
+        in_fh = open(input_file, 'r')
+    out_fh = open(output_file, 'w')
     dup_pattern = re.compile(r'<dup-(\d+)>')
 
+    header_added = False
     for line in in_fh:
+        # Add custom field definitions to the header
+        if line.startswith('#') and not header_added and "##INFO=<ID=STATUS" in line:
+            # Insert our custom header lines before the first INFO line
+            header_lines = [
+                '##INFO=<ID=DUP_SIZE,Number=1,Type=Integer,Description="Size of the duplication in base pairs">\n',
+                '##INFO=<ID=IS_DUP,Number=0,Type=Flag,Description="Variant was originally annotated as a duplication">\n',
+                '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">\n',
+                '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Length of structural variant">\n',
+                '##INFO=<ID=END,Number=1,Type=Integer,Description="End position of the structural variant">\n'
+            ]
+            for header_line in header_lines:
+                out_fh.write(header_line)
+            header_added = True
+        
+        # Insert headers at the end of the header section if not added earlier
+        if line.startswith('#CHROM') and not header_added:
+            header_lines = [
+                '##INFO=<ID=DUP_SIZE,Number=1,Type=Integer,Description="Size of the duplication in base pairs">\n',
+                '##INFO=<ID=IS_DUP,Number=0,Type=Flag,Description="Variant was originally annotated as a duplication">\n',
+                '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">\n',
+                '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Length of structural variant">\n',
+                '##INFO=<ID=END,Number=1,Type=Integer,Description="End position of the structural variant">\n'
+            ]
+            for header_line in header_lines:
+                out_fh.write(header_line)
+            header_added = True
+        
         # Output header lines unchanged
         if line.startswith('#'):
             out_fh.write(line)
             continue
-
+        
+        # Parse fields
         fields = line.strip().split('\t')
         
         # Look for <dup-XX> pattern in ALT field (field 5)
-        if len(fields) >= 5:
+        if len(fields) >= 5 and len(fields[4]) > 0:
             match = dup_pattern.search(fields[4])
             if match:
-                # Extract dup size and calculate END position
-                dup_size = int(match.group(1))
-                pos = int(fields[1])
-                end = pos + dup_size
-                
-                # Replace <dup-XX> with <DUP> in ALT field
-                fields[4] = dup_pattern.sub('<DUP>', fields[4])
+                # Remove the <dup-XX> notation
+                fields[4] = dup_pattern.sub("", fields[4])
                 
                 # Update INFO field (field 8)
                 if len(fields) >= 8:
+                    dup_size = match.group(1)
+                    pos = int(fields[1])
+                    end = pos + int(dup_size)
+                    
+                    # Add structural variant information to INFO field
                     info = fields[7]
                     
-                    # Replace TYPE=Insertion with SVTYPE=DUP
-                    if 'TYPE=Insertion' in info:
-                        info = info.replace('TYPE=Insertion', 'SVTYPE=DUP')
-                        
-                        # Add SVLEN and END
-                        info = f"{info};SVLEN={dup_size};END={end}"
-                        
-                        fields[7] = info
+                    # If it was already marked as an insertion, add duplication info
+                    if "TYPE=Insertion" in info:
+                        # Convert to a more standard SVTYPE format
+                        info = info.replace("TYPE=Insertion", "SVTYPE=INS")
+                        # Add SVLEN and END for downstream compatibility
+                        info = info + ";DUP_SIZE=" + dup_size + ";SVLEN=" + dup_size + ";END=" + str(end)
+                        # Add flag indicating this was originally a duplication
+                        info = info + ";IS_DUP=1"
+                    
+                    fields[7] = info
         
+        # Write the modified or unmodified line
         out_fh.write('\t'.join(fields) + '\n')
+
+    in_fh.close()
+    out_fh.close()
     CODE
     bgzip ~{output_name}
     tabix -p vcf ~{output_name}.gz
