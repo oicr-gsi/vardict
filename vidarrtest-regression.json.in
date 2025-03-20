@@ -48,11 +48,7 @@
             "vardict.mergeVcfs.refDict": null,
             "vardict.mergeVcfs.vcfs": null,
             "vardict.mergeVcfs.vcfIndexes": null,
-            "vardict.mergeVcfs.tumor_sample_name": null,
-            "vardict.normalizeVardictVcf.memory": null,
-            "vardict.normalizeVardictVcf.modules": null,
-            "vardict.normalizeVardictVcf.timeout": null,
-            "vardict.normalizeVardictVcf.vcf_file": null
+            "vardict.mergeVcfs.tumor_sample_name": null
         },
         "description": "vardict workflow test",
         "engineArguments": {
