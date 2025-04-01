@@ -23,7 +23,9 @@ java -jar cromwell.jar run vardict.wdl --inputs inputs.json
 Parameter|Value|Description
 ---|---|---
 `tumor_bam`|File|tumor_bam file for analysis sample
+`tumor_bai`|File|index for tumor bam file
 `normal_bam`|File|normal_bam file for analysis sample
+`normal_bai`|File|index for normal bam file
 `tumor_sample_name`|String|Sample name for the tumor bam
 `normal_sample_name`|String|Sample name for the normal bam
 `bed_file`|String|BED files for specifying regions of interest
