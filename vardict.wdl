@@ -11,7 +11,9 @@ struct GenomeResources {
 workflow vardict {
     input {
         File tumor_bam
+        File tumor_bai
         File normal_bam
+        File normal_bai
         String tumor_sample_name
         String normal_sample_name
         String bed_file
@@ -20,7 +22,9 @@ workflow vardict {
 
     parameter_meta {
         tumor_bam: "tumor_bam file for analysis sample"
+        tumor_bai: "index for tumor bam file"
         normal_bam: "normal_bam file for analysis sample"
+        normal_bai: "index for normal bam file"
         tumor_sample_name:"Sample name for the tumor bam"
         normal_sample_name: "Sample name for the normal bam"
         bed_file: "BED files for specifying regions of interest"
@@ -54,7 +58,9 @@ workflow vardict {
         call runVardict { 
             input: 
                 tumor_bam = tumor_bam,
+                tumor_bai = tumor_bai,
                 normal_bam = normal_bam,
+                normal_bai = normal_bai,
                 tumor_sample_name = tumor_sample_name,
                 normal_sample_name = normal_sample_name,
                 bed_file = splitBedByChromosome.bed_files[i],
@@ -166,7 +172,9 @@ task splitBedByChromosome {
 task runVardict {
     input {
         File tumor_bam
+        File tumor_bai
         File normal_bam
+        File normal_bai
         String tumor_sample_name
         String normal_sample_name
         String refFasta
@@ -184,7 +192,9 @@ task runVardict {
     }
     parameter_meta {
         tumor_bam: "tumor_bam file for analysis sample"
+        tumor_bai: "index for tumor bam file"
         normal_bam: "normal_bam file for analysis sample"
+        normal_bai: "index for normal bam file"
         tumor_sample_name:"Sample name for the tumor bam"
         normal_sample_name: "Sample name for the normal bam"
         refFai: "Reference fasta fai index"

@@ -13,9 +13,33 @@
                 },
                 "type": "EXTERNAL"
             },
+            "vardict.tumor_bai": {
+                "contents": {
+                    "configuration": "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022P.sorted.filter.deduped.realigned.recal.bam.bai",
+                    "externalIds": [
+                        {
+                            "id": "TEST",
+                            "provider": "TEST"
+                        }
+                    ]
+                },
+                "type": "EXTERNAL"
+            },
             "vardict.normal_bam": {
                 "contents": {
                     "configuration": "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022R.val.bam",
+                    "externalIds": [
+                        {
+                            "id": "TEST",
+                            "provider": "TEST"
+                        }
+                    ]
+                },
+                "type": "EXTERNAL"
+            },
+            "vardict.normal_bai": {
+                "contents": {
+                    "configuration": "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022R.val.bam.bai",
                     "externalIds": [
                         {
                             "id": "TEST",
