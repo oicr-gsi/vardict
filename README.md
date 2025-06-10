@@ -13,6 +13,7 @@ VarDict is an ultra sensitive variant caller for both single and paired sample v
 ## Usage
 
 ### Cromwell
+
 ```
 java -jar cromwell.jar run vardict.wdl --inputs inputs.json
 ```
@@ -30,11 +31,6 @@ Parameter|Value|Description
 `normal_sample_name`|String|Sample name for the normal bam
 `bed_file`|String|BED files for specifying regions of interest
 `reference`|String|the reference genome for input sample
-
-
-#### Optional workflow parameters:
-Parameter|Value|Default|Description
----|---|---|---
 
 
 #### Optional task parameters:
@@ -60,7 +56,9 @@ Output | Type | Description | Labels
 `vardictVcf`|File|Merged vcf, unfiltered.|
 `vardictVcfIndex`|File|VCF index for variant calling from vardict|vidarr_label: vardcit_index
 
+
 ## Commands
+
 This section lists command(s) run by vardict workflow
 
 * Running vardict
@@ -102,7 +100,7 @@ This section lists command(s) run by vardict workflow
             -G ~{refFasta} \
             -f ~{AF_THR} \
             -N ~{tumor_sample_name} \
-            -b "~{tumor_bam}|~{normal_bam}" \
+            -b "~{normal_bam}|~{tumor_bam}" \
             -Q ~{MAP_QUAL} \
             --nosv \
             -P ~{READ_POSITION_FILTER} \
@@ -110,7 +108,7 @@ This section lists command(s) run by vardict workflow
              ~{bed_file} | \
             $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
             $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
-            -N "~{tumor_sample_name}|~{normal_sample_name}" \
+            -N "~{normal_sample_name}|~{tumor_sample_name}" \
             -f ~{AF_THR} | bgzip  > vardict.vcf.gz
 
             # the vardict generated vcf header missing contig name, need extract contig lines from refFai
@@ -131,7 +129,6 @@ This section lists command(s) run by vardict workflow
     O=~{tumor_sample_name}.vardict.vcf.gz \
     SEQUENCE_DICTIONARY=~{refDict}
 ```
-
 ## Support
 
 For support, please file an issue on the [Github project](https://github.com/oicr-gsi) or send an email to gsi@oicr.on.ca .

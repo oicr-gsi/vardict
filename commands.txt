@@ -40,7 +40,7 @@ This section lists command(s) run by vardict workflow
             -G ~{refFasta} \
             -f ~{AF_THR} \
             -N ~{tumor_sample_name} \
-            -b "~{tumor_bam}|~{normal_bam}" \
+            -b "~{normal_bam}|~{tumor_bam}" \
             -Q ~{MAP_QUAL} \
             --nosv \
             -P ~{READ_POSITION_FILTER} \
@@ -48,7 +48,7 @@ This section lists command(s) run by vardict workflow
              ~{bed_file} | \
             $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
             $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
-            -N "~{tumor_sample_name}|~{normal_sample_name}" \
+            -N "~{normal_sample_name}|~{tumor_sample_name}" \
             -f ~{AF_THR} | bgzip  > vardict.vcf.gz
 
             # the vardict generated vcf header missing contig name, need extract contig lines from refFai
