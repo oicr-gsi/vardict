@@ -37,14 +37,14 @@ workflow vardict {
             "refFasta" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.fa",
             "refDict" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.dict",
             "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
-            "mergeVcfModules": "picard/2.19.2 hg19/p13"
+            "mergeVcfModules": "vcftools/0.1.16 tabix/1.9 hg19/p13"
         },
         "hg38": {
             "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa.fai",
             "refFasta" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa",
             "refDict" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.dict",
             "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
-            "mergeVcfModules": "picard/2.19.2  hg38/p12"
+            "mergeVcfModules": "vcftools/0.1.16 tabix/1.9 hg38/p12"
         }
     }
 
@@ -90,6 +90,10 @@ workflow vardict {
             {
                 name: "vardict/1.8.3",
                 url: "https://github.com/pachterlab/vardict"
+            },
+            {
+                name: "tabix/0.2.6",
+                url: "http://www.htslib.org"
             },
             {
                 name: "java",
@@ -286,11 +290,11 @@ task mergeVcfs {
 
    command <<<
     set -euo pipefail
-
-    java "-Xmx~{memory-3}g" -jar $PICARD_ROOT/picard.jar MergeVcfs \
-    ~{sep=" " prefix("I=", vcfs)} \
-    O=~{tumor_sample_name}.vardict.vcf.gz \
-    SEQUENCE_DICTIONARY=~{refDict}
+    $VCFTOOLS_ROOT/bin/vcf-concat ~{sep=" " vcfs} > temp.vcf
+    grep ^# temp.vcf | perl -ne 'BEGIN{$end=0}{print if !$end;if(/CHROM/){$end = 1;}}' > ~{tumor_sample_name}.vardict.vcf
+    grep -v ^# temp.vcf >> ~{tumor_sample_name}.vardict.vcf
+    bgzip ~{tumor_sample_name}.vardict.vcf
+    tabix -p vcf ~{tumor_sample_name}.vardict.vcf.gz
   >>>
 
   runtime {

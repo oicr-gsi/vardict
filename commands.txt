@@ -3,6 +3,11 @@ This section lists command(s) run by vardict workflow
 
 * Running vardict
 
+
+### Calculate memory allocation coefficients
+
+Depending on the size, each chromosome-specific shard gets a specific amount of RAM
+
 ```
         set -euo pipefail
         
@@ -30,6 +35,11 @@ This section lists command(s) run by vardict workflow
             printf "%.2f\n", coefficient
         }' range_sizes.txt > memory_coefficients.txt
 ```
+
+### Run vardict
+
+This is a task which runs in a scatter, one shard per chromosome
+
 ```
         set -euo pipefail
         cp ~{refFai} .
@@ -61,11 +71,16 @@ This section lists command(s) run by vardict workflow
             tabix -p vcf ~{tumor_sample_name}_~{normal_sample_name}.vardict.vcf.gz
             
 ```
+### Merge chromosome-specific vcf files
+
+Using vcftools we merge chromosome-specific chunks into one vcf. Additional post-processing required
+to remove extra header lines from chunk-specific vcf files
+
 ```
     set -euo pipefail
-
-    java "-Xmx~{memory-3}g" -jar $PICARD_ROOT/picard.jar MergeVcfs \
-    ~{sep=" " prefix("I=", vcfs)} \
-    O=~{tumor_sample_name}.vardict.vcf.gz \
-    SEQUENCE_DICTIONARY=~{refDict}
+    $VCFTOOLS_ROOT/bin/vcf-concat ~{sep=" " vcfs} > temp.vcf
+    grep ^# test.vcf | perl -ne 'BEGIN{$end=0}{print if !$end;if(/CHROM/){$end = 1;}}' > ~{tumor_sample_name}.vardict.vcf
+    grep -v ^# temp.vcf >> ~{tumor_sample_name}.vardict.vcf
+    bgzip ~{tumor_sample_name}.vardict.vcf
+    tabix -p vcf ~{tumor_sample_name}.vardict.vcf.gz
 ```
