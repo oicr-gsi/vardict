@@ -3,7 +3,7 @@
         "arguments": {
             "vardict.tumor_bam": {
                 "contents": {
-                    "configuration": "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022P.sorted.filter.deduped.realigned.recal.bam",
+                    "configuration": "/.mounts/labs/gsi/testdata/mutect2/test_inputs/PCSI_Test01.sorted.filter.deduped.realigned.recal.bam",
                     "externalIds": [
                         {
                             "id": "TEST",
@@ -15,7 +15,7 @@
             },
             "vardict.tumor_bai": {
                 "contents": {
-                    "configuration": "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022P.sorted.filter.deduped.realigned.recal.bam.bai",
+                    "configuration": "/.mounts/labs/gsi/testdata/mutect2/test_inputs/PCSI_Test01.sorted.filter.deduped.realigned.recal.bam.bai",
                     "externalIds": [
                         {
                             "id": "TEST",
@@ -27,7 +27,7 @@
             },
             "vardict.normal_bam": {
                 "contents": {
-                    "configuration": "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022R.val.bam",
+                    "configuration": "/.mounts/labs/gsi/testdata/mutect2/test_inputs/PCSI_Test02.val.bam",
                     "externalIds": [
                         {
                             "id": "TEST",
@@ -39,7 +39,7 @@
             },
             "vardict.normal_bai": {
                 "contents": {
-                    "configuration": "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022R.val.bam.bai",
+                    "configuration": "/.mounts/labs/gsi/testdata/mutect2/test_inputs/PCSI_Test02.val.bam.bai",
                     "externalIds": [
                         {
                             "id": "TEST",
@@ -49,7 +49,7 @@
                 },
                 "type": "EXTERNAL"
             },
-            "vardict.normal_sample_name": "PCSI0022R",
+            "vardict.normal_sample_name": "PCSI_Test02",
             "vardict.runVardict.MAP_QUAL": null,
             "vardict.runVardict.READ_POSITION_FILTER": null,
             "vardict.runVardict.timeout": 48,
@@ -58,9 +58,9 @@
             "vardict.runVardict.memory_coefficient": null,
             "vardict.runVardict.minMemory": null,
             "vardict.runVardict.numThreads": 8,
-            "vardict.bed_file": "/.mounts/labs/gsi/testdata/mutect2/input_data/PCSI0022.val.bed",
+            "vardict.bed_file": "/.mounts/labs/gsi/testdata/mutect2/test_inputs/PCSI_Test.val.bed",
             "vardict.runVardict.refFasta": null,
-            "vardict.tumor_sample_name": "PCSI0022P",
+            "vardict.tumor_sample_name": "PCSI_Test01",
             "vardict.runVardict.AF_THR": null,
             "vardict.reference": "hg19",
             "vardict.splitBedByChromosome.memory": null,
@@ -103,7 +103,7 @@
             {
                 "metrics_calculate": "@CHECKOUT@/tests/calculate.sh",
                 "metrics_compare": "@CHECKOUT@/tests/compare.sh",
-                "output_metrics": "/.mounts/labs/gsi/testdata/vardict/output_expectation/1.0.2/vardict_test.metrics",
+                "output_metrics": "/.mounts/labs/gsi/testdata/vardict/output_metrics/1.0.2/workflow_test_01.metrics",
                 "type": "script"
             }
         ]
