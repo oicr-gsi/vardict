@@ -37,14 +37,14 @@ workflow vardict {
             "refFasta" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.fa",
             "refDict" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.dict",
             "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
-            "mergeVcfModules": "vcftools/0.1.16 tabix/1.9 hg19/p13"
+            "mergeVcfModules": "bcftools/1.9 tabix/1.9 hg19/p13"
         },
         "hg38": {
             "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa.fai",
             "refFasta" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa",
             "refDict" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.dict",
             "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
-            "mergeVcfModules": "vcftools/0.1.16 tabix/1.9 hg38/p12"
+            "mergeVcfModules": "bcftools/1.9 tabix/1.9 hg38/p12"
         }
     }
 
@@ -78,7 +78,8 @@ workflow vardict {
       vcfs = vardictVcfs,
       vcfIndexes = vardictVcfIndexes,
       tumor_sample_name = tumor_sample_name,
-      refDict = resources[reference].refDict,
+      normal_sample_name = normal_sample_name,
+      refFasta = resources[reference].refFasta,
       modules = resources[reference].mergeVcfModules
     }
 
@@ -134,7 +135,7 @@ task splitBedByChromosome {
     command <<<
         set -euo pipefail
         
-        mkdir split_beds
+        mkdir -p split_beds
         CHROMS=($(seq 1 22) X Y)
         
         for chr in "${CHROMS[@]}"; do
@@ -183,9 +184,9 @@ task runVardict {
         String normal_sample_name
         String refFasta
         String refFai
-        String AF_THR = 0.01
+        String AF_THR = 0.03
         String MAP_QUAL = 10
-        String READ_POSITION_FILTER = 5
+        String READ_POSITION_FILTER = 8
         String modules
         String bed_file
         Int timeout = 120
@@ -226,7 +227,7 @@ task runVardict {
             -G ~{refFasta} \
             -f ~{AF_THR} \
             -N ~{tumor_sample_name} \
-            -b "~{normal_bam}|~{tumor_bam}" \
+            -b "~{tumor_bam}|~{normal_bam}"  \
             -Q ~{MAP_QUAL} \
             --nosv \
             -P ~{READ_POSITION_FILTER} \
@@ -234,8 +235,9 @@ task runVardict {
              ~{bed_file} | \
             $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
             $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
-            -N "~{normal_sample_name}|~{tumor_sample_name}" \
-            -f ~{AF_THR} | bgzip  > vardict.vcf.gz
+            -N "~{tumor_sample_name}|~{normal_sample_name}" \
+            -A \
+            -f ~{AF_THR} | bgzip > vardict.vcf.gz
 
             # the vardict generated vcf header missing contig name, need extract contig lines from refFai
             bcftools view -h vardict.vcf.gz > header.txt     
@@ -265,9 +267,10 @@ task mergeVcfs {
   input {
     String modules
     String tumor_sample_name
+    String normal_sample_name
     Array[File] vcfs
     Array[File] vcfIndexes 
-    String refDict
+    String refFasta
     Int memory = 4
     Int timeout = 12
   }
@@ -278,7 +281,7 @@ task mergeVcfs {
     vcfIndexes: "The indices for the input vcfs"
     memory: "Memory allocated for job"
     timeout: "Hours before task timeout"
-    refDict: "reference sequence dictionary"
+    refFasta: "The reference fasta"
   }
 
   meta {
@@ -290,11 +293,18 @@ task mergeVcfs {
 
    command <<<
     set -euo pipefail
-    $VCFTOOLS_ROOT/bin/vcf-concat ~{sep=" " vcfs} > temp.vcf
-    grep ^# temp.vcf | perl -ne 'BEGIN{$end=0}{print if !$end;if(/CHROM/){$end = 1;}}' > ~{tumor_sample_name}.vardict.vcf
-    grep -v ^# temp.vcf >> ~{tumor_sample_name}.vardict.vcf
-    bgzip ~{tumor_sample_name}.vardict.vcf
-    tabix -p vcf ~{tumor_sample_name}.vardict.vcf.gz
+    # concat data and reorder normal/tumor columns
+    bcftools concat -a ~{sep=" " vcfs} -O v -o temp.vcf
+
+    # filtering: PASS and Somatic only
+    bcftools view -f PASS -i 'INFO/STATUS~".*Somatic"' temp.vcf -o filtered.vcf -O v
+    
+    # bgzip + index final VCF
+    mv filtered.vcf ~{tumor_sample_name}.vardict.somatic.vcf
+    bgzip ~{tumor_sample_name}.vardict.somatic.vcf
+    tabix -p vcf ~{tumor_sample_name}.vardict.somatic.vcf.gz
+
+
   >>>
 
   runtime {
@@ -304,8 +314,8 @@ task mergeVcfs {
   }
 
   output {
-    File mergedVcf = "~{tumor_sample_name}.vardict.vcf.gz"
-    File mergedVcfIdx = "~{tumor_sample_name}.vardict.vcf.gz.tbi"
+    File mergedVcf = "~{tumor_sample_name}.vardict.somatic.vcf.gz"
+    File mergedVcfIdx = "~{tumor_sample_name}.vardict.somatic.vcf.gz.tbi"
   }
 }
 
