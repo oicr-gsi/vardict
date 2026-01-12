@@ -14,7 +14,6 @@ VarDict is an ultra sensitive variant caller for both single and paired sample v
 ## Usage
 
 ### Cromwell
-
 ```
 java -jar cromwell.jar run vardict.wdl --inputs inputs.json
 ```
@@ -34,14 +33,19 @@ Parameter|Value|Description
 `reference`|String|the reference genome for input sample
 
 
+#### Optional workflow parameters:
+Parameter|Value|Default|Description
+---|---|---|---
+
+
 #### Optional task parameters:
 Parameter|Value|Default|Description
 ---|---|---|---
 `splitBedByChromosome.memory`|Int|1|Memory allocated for task in GB
 `splitBedByChromosome.timeout`|Int|1|Timeout in hours
-`runVardict.AF_THR`|String|0.01|The threshold for allele frequency, default: 0.01 or 1%
+`runVardict.AF_THR`|String|0.03|The threshold for allele frequency, default: 0.01 or 1%
 `runVardict.MAP_QUAL`|String|10| Mapping quality. If set, reads with mapping quality less than the number will be filtered and ignored
-`runVardict.READ_POSITION_FILTER`|String|5|The read position filter. If the mean variants position is less that specified, it is considered false positive. Default: 5
+`runVardict.READ_POSITION_FILTER`|String|8|The read position filter. If the mean variants position is less that specified, it is considered false positive. Default: 5
 `runVardict.timeout`|Int|120|Timeout in hours, needed to override imposed limits
 `runVardict.memory`|Int|32|base memory for this job
 `runVardict.minMemory`|Int|24|The minimum value for allocated memory
@@ -110,7 +114,7 @@ Output | Type | Description | Labels
              -G ~{refFasta} \
              -f ~{AF_THR} \
              -N ~{tumor_sample_name} \
-             -b "~{normal_bam}|~{tumor_bam}" \
+             -b "~{tumor_bam}|~{normal_bam}"  \
              -Q ~{MAP_QUAL} \
              --nosv \
              -P ~{READ_POSITION_FILTER} \
@@ -118,8 +122,9 @@ Output | Type | Description | Labels
               ~{bed_file} | \
              $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
              $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
-             -N "~{normal_sample_name}|~{tumor_sample_name}" \
-             -f ~{AF_THR} | bgzip  > vardict.vcf.gz
+             -N "~{tumor_sample_name}|~{normal_sample_name}" \
+             -A \
+             -f ~{AF_THR} | bgzip > vardict.vcf.gz
  
              # the vardict generated vcf header missing contig name, need extract contig lines from refFai
              bcftools view -h vardict.vcf.gz > header.txt     
@@ -138,11 +143,17 @@ Output | Type | Description | Labels
  
  ```
      set -euo pipefail
-     $VCFTOOLS_ROOT/bin/vcf-concat ~{sep=" " vcfs} > temp.vcf
-     grep ^# test.vcf | perl -ne 'BEGIN{$end=0}{print if !$end;if(/CHROM/){$end = 1;}}' > ~{tumor_sample_name}.vardict.vcf
-     grep -v ^# temp.vcf >> ~{tumor_sample_name}.vardict.vcf
-     bgzip ~{tumor_sample_name}.vardict.vcf
-     tabix -p vcf ~{tumor_sample_name}.vardict.vcf.gz
+     # concat data and reorder normal/tumor columns
+     bcftools concat -a ~{sep=" " vcfs} -O v -o temp.vcf
+ 
+     # filtering: PASS and Somatic only
+     bcftools view -f PASS -i 'INFO/STATUS~".*Somatic"' temp.vcf -o filtered.vcf -O v
+     
+     # bgzip + index final VCF
+     mv filtered.vcf ~{tumor_sample_name}.vardict.somatic.vcf
+     bgzip ~{tumor_sample_name}.vardict.somatic.vcf
+     tabix -p vcf ~{tumor_sample_name}.vardict.somatic.vcf.gz
+ 
  ```
  ## Support
 

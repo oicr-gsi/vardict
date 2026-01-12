@@ -50,7 +50,7 @@ This is a task which runs in a scatter, one shard per chromosome
             -G ~{refFasta} \
             -f ~{AF_THR} \
             -N ~{tumor_sample_name} \
-            -b "~{normal_bam}|~{tumor_bam}" \
+            -b "~{tumor_bam}|~{normal_bam}"  \
             -Q ~{MAP_QUAL} \
             --nosv \
             -P ~{READ_POSITION_FILTER} \
@@ -58,8 +58,9 @@ This is a task which runs in a scatter, one shard per chromosome
              ~{bed_file} | \
             $RSTATS_ROOT/bin/Rscript $VARDICT_ROOT/bin/testsomatic.R | \
             $PERL_ROOT/bin/perl $VARDICT_ROOT/bin/var2vcf_paired.pl \
-            -N "~{normal_sample_name}|~{tumor_sample_name}" \
-            -f ~{AF_THR} | bgzip  > vardict.vcf.gz
+            -N "~{tumor_sample_name}|~{normal_sample_name}" \
+            -A \
+            -f ~{AF_THR} | bgzip > vardict.vcf.gz
 
             # the vardict generated vcf header missing contig name, need extract contig lines from refFai
             bcftools view -h vardict.vcf.gz > header.txt     
@@ -78,9 +79,15 @@ to remove extra header lines from chunk-specific vcf files
 
 ```
     set -euo pipefail
-    $VCFTOOLS_ROOT/bin/vcf-concat ~{sep=" " vcfs} > temp.vcf
-    grep ^# test.vcf | perl -ne 'BEGIN{$end=0}{print if !$end;if(/CHROM/){$end = 1;}}' > ~{tumor_sample_name}.vardict.vcf
-    grep -v ^# temp.vcf >> ~{tumor_sample_name}.vardict.vcf
-    bgzip ~{tumor_sample_name}.vardict.vcf
-    tabix -p vcf ~{tumor_sample_name}.vardict.vcf.gz
+    # concat data and reorder normal/tumor columns
+    bcftools concat -a ~{sep=" " vcfs} -O v -o temp.vcf
+
+    # filtering: PASS and Somatic only
+    bcftools view -f PASS -i 'INFO/STATUS~".*Somatic"' temp.vcf -o filtered.vcf -O v
+    
+    # bgzip + index final VCF
+    mv filtered.vcf ~{tumor_sample_name}.vardict.somatic.vcf
+    bgzip ~{tumor_sample_name}.vardict.somatic.vcf
+    tabix -p vcf ~{tumor_sample_name}.vardict.somatic.vcf.gz
+
 ```

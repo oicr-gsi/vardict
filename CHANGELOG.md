@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Adjusted default VarDict parameters: `AF_THR=0.03` and `READ_POSITION_FILTER=8` to improve variant calling sensitivity.
 
 ### Added
+- Updated VCF filtering to retain only PASS variants with Somatic status.
 - Added `-p` flag to `mkdir` in `splitBedByChromosome` task to avoid errors if the `split_beds` directory already exists.
 
 
