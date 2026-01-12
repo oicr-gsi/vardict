@@ -103,7 +103,7 @@
             {
                 "metrics_calculate": "@CHECKOUT@/tests/calculate.sh",
                 "metrics_compare": "@CHECKOUT@/tests/compare.sh",
-                "output_metrics": "/.mounts/labs/gsi/testdata/vardict/output_metrics/1.0.2/workflow_test_01.metrics",
+                "output_metrics": "/.mounts/labs/gsi/testdata/vardict/output_metrics/1.0.3/workflow_test_01.metrics",
                 "type": "script"
             }
         ]
