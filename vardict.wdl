@@ -4,7 +4,7 @@ struct GenomeResources {
     String refFai
     String refFasta
     String refDict
-    String knownGene_sites
+    File knownGene_sites
     String modules
     String mergeVcfModules
 }
@@ -15,6 +15,7 @@ workflow vardict {
         File tumor_bai
         File normal_bam
         File normal_bai
+        File? bed_file
         String tumor_sample_name
         String normal_sample_name
         String reference
@@ -51,7 +52,7 @@ workflow vardict {
 
     call splitBedByChromosome {
         input:
-        bed_file = resources[reference].knownGene_sites
+        bed_file = select_first([bed_file, resources[reference].knownGene_sites])
     }
 
     # run vardict
