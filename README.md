@@ -35,6 +35,7 @@ Parameter|Value|Description
 #### Optional workflow parameters:
 Parameter|Value|Default|Description
 ---|---|---|---
+`bed_file`|String?|None|BED files for specifying regions of interest
 
 
 #### Optional task parameters:

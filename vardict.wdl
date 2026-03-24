@@ -28,6 +28,7 @@ workflow vardict {
         normal_bai: "index for normal bam file"
         tumor_sample_name:"Sample name for the tumor bam"
         normal_sample_name: "Sample name for the normal bam"
+        bed_file: "BED files for specifying regions of interest"
         reference: "the reference genome for input sample"
     }
 

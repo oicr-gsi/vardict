@@ -7,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.4] - 2026-03-23
 ### Added
 - [GRD-1089](https://jira.oicr.on.ca/browse/GRD-1089) Integrated ucsc-knowngene-sites data module to supply knownGene BED automatically. BED selection is now handled internally based on reference (hg19/hg38).
+- Added knownGene_sites to GenomeResources
 
-### Removed
-- Removed requirement to provide bed_file in workflow inputs.
+### Changed
+- Changed requirement to provide bed_file in workflow inputs to optional.
 
 ### Fixed
 - Fixed path to VarDict repository.
