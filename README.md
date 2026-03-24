@@ -6,7 +6,7 @@ VarDict is an ultra sensitive variant caller for both single and paired sample v
 
 ## Dependencies
 
-* [vardict 1.8.3](https://github.com/pachterlab/vardict)
+* [vardict 1.8.3](https://github.com/AstraZeneca-NGS/VarDict)
 * [tabix 0.2.6](http://www.htslib.org)
 * [java](https://www.java.com/en/)
 
@@ -29,7 +29,6 @@ Parameter|Value|Description
 `normal_bai`|File|index for normal bam file
 `tumor_sample_name`|String|Sample name for the tumor bam
 `normal_sample_name`|String|Sample name for the normal bam
-`bed_file`|String|BED files for specifying regions of interest
 `reference`|String|the reference genome for input sample
 
 

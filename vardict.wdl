@@ -4,6 +4,7 @@ struct GenomeResources {
     String refFai
     String refFasta
     String refDict
+    String knownGene_sites
     String modules
     String mergeVcfModules
 }
@@ -16,7 +17,6 @@ workflow vardict {
         File normal_bai
         String tumor_sample_name
         String normal_sample_name
-        String bed_file
         String reference
     }
 
@@ -27,7 +27,6 @@ workflow vardict {
         normal_bai: "index for normal bam file"
         tumor_sample_name:"Sample name for the tumor bam"
         normal_sample_name: "Sample name for the normal bam"
-        bed_file: "BED files for specifying regions of interest"
         reference: "the reference genome for input sample"
     }
 
@@ -36,6 +35,7 @@ workflow vardict {
             "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.fa.fai",
             "refFasta" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.fa",
             "refDict" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.dict",
+            "knownGene_sites": "/.mounts/labs/gsi/modulator/sw/data/ucsc-knowngene-sites-hg19/knownGene.sites.hg19.bed",
             "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
             "mergeVcfModules": "bcftools/1.9 tabix/1.9 hg19/p13"
         },
@@ -43,6 +43,7 @@ workflow vardict {
             "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa.fai",
             "refFasta" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa",
             "refDict" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.dict",
+            "knownGene_sites": "/.mounts/labs/gsi/modulator/sw/data/ucsc-knowngene-sites-hg38/knownGene.sites.hg38.bed",
             "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
             "mergeVcfModules": "bcftools/1.9 tabix/1.9 hg38/p12"
         }
@@ -50,7 +51,7 @@ workflow vardict {
 
     call splitBedByChromosome {
         input:
-        bed_file = bed_file
+        bed_file = resources[reference].knownGene_sites
     }
 
     # run vardict
@@ -67,7 +68,7 @@ workflow vardict {
                 memory_coefficient = splitBedByChromosome.memory_coefficients[i],
                 modules = resources [ reference ].modules,
                 refFai = resources[reference].refFai,
-                refFasta = resources[reference].refFasta,
+                refFasta = resources[reference].refFasta
         }
     }
     Array[File] vardictVcfs = runVardict.vcf_file
@@ -84,13 +85,13 @@ workflow vardict {
     }
 
     meta {
-        author: "Gavin Peng"
-        email: "gpeng@oicr.on.ca"
+        author: "Gavin Peng, Monica L. Rojas-Pena"
+        email: "gpeng@oicr.on.ca, mrojaspena@oicr.on.ca"
         description: "VarDict is an ultra sensitive variant caller for both single and paired sample variant calling from BAM files. VarDict implements several novel features such as amplicon bias aware variant calling from targeted sequencing experiments, rescue of long indels by realigning bwa soft clipped reads and better scalability than many Java based variant callers."
         dependencies: [
             {
                 name: "vardict/1.8.3",
-                url: "https://github.com/pachterlab/vardict"
+                url: "https://github.com/AstraZeneca-NGS/VarDict"
             },
             {
                 name: "tabix/0.2.6",

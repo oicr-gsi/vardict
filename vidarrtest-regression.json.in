@@ -58,14 +58,12 @@
             "vardict.runVardict.memory_coefficient": null,
             "vardict.runVardict.minMemory": null,
             "vardict.runVardict.numThreads": 8,
-            "vardict.bed_file": "/.mounts/labs/gsi/testdata/mutect2/test_inputs/PCSI_Test.val.bed",
             "vardict.runVardict.refFasta": null,
             "vardict.tumor_sample_name": "PCSI_Test01",
             "vardict.runVardict.AF_THR": null,
             "vardict.reference": "hg19",
             "vardict.splitBedByChromosome.memory": null,
             "vardict.splitBedByChromosome.timeout": null,
-            "vardict.splitBedByChromosome.bed_file": null,
             "vardict.mergeVcfs.memory": null,
             "vardict.mergeVcfs.modules": null,
             "vardict.mergeVcfs.timeout": null,
@@ -103,7 +101,7 @@
             {
                 "metrics_calculate": "@CHECKOUT@/tests/calculate.sh",
                 "metrics_compare": "@CHECKOUT@/tests/compare.sh",
-                "output_metrics": "/.mounts/labs/gsi/testdata/vardict/output_metrics/1.0.3/workflow_test_01.metrics",
+                "output_metrics": "/.mounts/labs/gsi/testdata/vardict/output_metrics/1.0.4/workflow_test_01.metrics",
                 "type": "script"
             }
         ]
