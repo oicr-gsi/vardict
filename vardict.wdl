@@ -4,6 +4,7 @@ struct GenomeResources {
     String refFai
     String refFasta
     String refDict
+    String knownGeneSites
     String modules
     String mergeVcfModules
 }
@@ -16,7 +17,7 @@ workflow vardict {
         File normal_bai
         String tumor_sample_name
         String normal_sample_name
-        String bed_file
+        String? bed_file
         String reference
     }
 
@@ -33,24 +34,27 @@ workflow vardict {
 
     Map[String, GenomeResources] resources = {
         "hg19": {
-            "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.fa.fai",
-            "refFasta" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.fa",
-            "refDict" : "/.mounts/labs/gsi/modulator/sw/data/hg19-p13/hg19_random.dict",
-            "modules" : "hg19/p13 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
+            "refFai" : "$HG19_ROOT/hg19_random.fa.fai",
+            "refFasta" : "$HG19_ROOT/hg19_random.fa",
+            "refDict" : "$HG19_ROOT/hg19_random.dict",
+            "knownGeneSites": "$UCSC_KNOWNGENE_SITES_ROOT/knownGene.sites.hg19.bed",
+            "modules" : "hg19/p13 ucsc-knowngene-sites/hg19 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
             "mergeVcfModules": "bcftools/1.9 tabix/1.9 hg19/p13"
         },
         "hg38": {
-            "refFai" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa.fai",
-            "refFasta" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.fa",
-            "refDict" : "/.mounts/labs/gsi/modulator/sw/data/hg38-p12/hg38_random.dict",
-            "modules" : "hg38/p12 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
+            "refFai" : "$HG38_ROOT/hg38_random.fa.fai",
+            "refFasta" : "$HG38_ROOT/hg38_random.fa",
+            "refDict" : "$HG38_ROOT/hg38_random.dict",
+            "knownGeneSites": "$UCSC_KNOWNGENE_SITES_ROOT/knownGene.sites.hg38.bed",
+            "modules" : "hg38/p12 ucsc-knowngene-sites/hg38 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
             "mergeVcfModules": "bcftools/1.9 tabix/1.9 hg38/p12"
         }
     }
 
     call splitBedByChromosome {
         input:
-        bed_file = bed_file
+        bed_file = select_first([bed_file, resources[reference].knownGeneSites]),
+        reference = reference 
     }
 
     # run vardict
@@ -67,7 +71,7 @@ workflow vardict {
                 memory_coefficient = splitBedByChromosome.memory_coefficients[i],
                 modules = resources [ reference ].modules,
                 refFai = resources[reference].refFai,
-                refFasta = resources[reference].refFasta,
+                refFasta = resources[reference].refFasta
         }
     }
     Array[File] vardictVcfs = runVardict.vcf_file
@@ -84,13 +88,13 @@ workflow vardict {
     }
 
     meta {
-        author: "Gavin Peng"
-        email: "gpeng@oicr.on.ca"
+        author: "Gavin Peng, Monica L. Rojas-Pena"
+        email: "gpeng@oicr.on.ca, mrojaspena@oicr.on.ca"
         description: "VarDict is an ultra sensitive variant caller for both single and paired sample variant calling from BAM files. VarDict implements several novel features such as amplicon bias aware variant calling from targeted sequencing experiments, rescue of long indels by realigning bwa soft clipped reads and better scalability than many Java based variant callers."
         dependencies: [
             {
                 name: "vardict/1.8.3",
-                url: "https://github.com/pachterlab/vardict"
+                url: "https://github.com/AstraZeneca-NGS/VarDict"
             },
             {
                 name: "tabix/0.2.6",
@@ -122,7 +126,8 @@ workflow vardict {
 
 task splitBedByChromosome {
     input {
-        File bed_file  
+        String bed_file
+        String reference  
         Int memory = 1
         Int timeout = 1
     }
@@ -135,11 +140,13 @@ task splitBedByChromosome {
     command <<<
         set -euo pipefail
         
+        BED_FILE=$(eval echo "~{bed_file}")
+
         mkdir -p split_beds
         CHROMS=($(seq 1 22) X Y)
         
         for chr in "${CHROMS[@]}"; do
-            grep -E "^(chr)?${chr}[[:space:]]" ~{bed_file} > split_beds/chr${chr}.bed || true
+            grep -E "^(chr)?${chr}[[:space:]]" "${BED_FILE}" > split_beds/chr${chr}.bed || true
             if [ -s split_beds/chr${chr}.bed ]; then
                 echo "split_beds/chr${chr}.bed" >> split_beds.list
                 # Calculate range size for this bed
@@ -166,6 +173,7 @@ task splitBedByChromosome {
     }
 
     runtime {
+        modules: "ucsc-knowngene-sites/~{reference}"
         memory:  "~{memory} GB"
         timeout: "~{timeout}"
     }
