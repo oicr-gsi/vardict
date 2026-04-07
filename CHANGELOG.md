@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.5] - 2026-04-07
 ### Added
-- Add vidarr labels to outputs (changes to medata only) 
+- Add workflow aliases 
 
 ## [1.0.4] - 2026-03-23
 ### Added
