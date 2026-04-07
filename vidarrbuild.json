@@ -1,6 +1,9 @@
 {
     "names": [
-        "vardict"
+        "vardict",
+        "vardict_matched",
+	    "vardict_tumor_only",
+		"vardict_normal_only"
     ],
     "wdl": "vardict.wdl"
 }
