@@ -48,6 +48,14 @@ workflow vardict {
             "knownGeneSites": "$UCSC_KNOWNGENE_SITES_ROOT/knownGene.sites.hg38.bed",
             "modules" : "hg38/p12 ucsc-knowngene-sites/hg38 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
             "mergeVcfModules": "bcftools/1.9 tabix/1.9 hg38/p12"
+        },
+        "hg38_noAlt": {
+            "refFai" : "$HG38_NOALT_ROOT/hg38_noAlt.fa.fai",
+            "refFasta" : "$HG38_NOALT_ROOT/hg38_noAlt.fa",
+            "refDict" : "$HG38_NOALT_ROOT/hg38_noAlt.dict",
+            "knownGeneSites": "$UCSC_KNOWNGENE_SITES_NOALT_ROOT/knownGene.sites.hg38_noAlt.bed",
+            "modules" : "hg38-noalt/p12 ucsc-knowngene-sites-noalt/hg38 rstats/4.2 java/9 perl/5.30 vardict/1.8.3 bcftools/1.9 htslib/1.9",
+            "mergeVcfModules": "bcftools/1.9 tabix/1.9 hg38-noalt/p12"
         }
     }
 
